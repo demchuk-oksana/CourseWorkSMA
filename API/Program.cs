@@ -12,6 +12,19 @@ using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Add services to the container.
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend",
+        policy =>
+        {
+            policy.WithOrigins("http://localhost:4200") // Allow only frontend origin
+                  .AllowAnyHeader()                   // Allow any HTTP headers
+                  .AllowAnyMethod();                  // Allow any HTTP methods (GET, POST, etc.)
+        });
+});
+
+
 // 🔐 Load RSA keys
 var rsaKeyService = new RSAKeyService();
 RSA rsaPrivateKey = rsaKeyService.LoadPrivateKey();
@@ -106,6 +119,16 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// Use CORS
+app.UseCors("AllowFrontend");
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
 
 // 🔐 Enable auth
 app.UseAuthentication();
