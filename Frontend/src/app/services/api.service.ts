@@ -1,13 +1,12 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { environment } from '../../environments/environment';
 
 @Injectable({
   providedIn: 'root'
 })
 export class ApiService {
-  private apiUrl = environment.apiUrl;
+  private apiUrl = 'http://localhost:5064/api'; // Update the base API URL here
 
   constructor(private http: HttpClient) {}
 
@@ -18,6 +17,6 @@ export class ApiService {
 
   // Example: Send data to the backend
   postExampleData(data: any): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/api/example`, data);
+    return this.http.post<any>(`${this.apiUrl}/example`, data);
   }
 }

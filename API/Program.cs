@@ -9,8 +9,13 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using AutoMapper;
+using API;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Add AutoMapper service
+builder.Services.AddAutoMapper(typeof(AutoMapperProfile));
 
 // Add services to the container.
 builder.Services.AddCors(options =>
