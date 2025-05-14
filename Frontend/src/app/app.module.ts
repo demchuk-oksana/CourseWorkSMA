@@ -1,23 +1,19 @@
-import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
-import { environment } from '../environments/environment';
+import { NgModule } from '@angular/core';
+import { BrowserModule } from '@angular/platform-browser';
+import { HttpClientModule } from '@angular/common/http';
+import { AppComponent } from './app.component';
+import { CategoryTreeComponent } from './category-tree/category-tree.component';
 
-@Injectable({
-  providedIn: 'root'
+@NgModule({
+  declarations: [
+    AppComponent,
+    CategoryTreeComponent // Declare your components here
+  ],
+  imports: [
+    BrowserModule, // Provides Angular's core browser functionality
+    HttpClientModule // For making HTTP requests in services
+  ],
+  providers: [],
+  bootstrap: [AppComponent] // Bootstraps the AppComponent
 })
-export class CategoryTreeService {
-  private apiUrl = environment.apiUrl;
-
-  constructor(private http: HttpClient) {}
-
-  // Fetch the category tree
-  getCategoryTree(): Observable<any[]> {
-    return this.http.get<any[]>(`${this.apiUrl}/api/categories`);
-  }
-
-  // Rearrange categories (drag-and-drop)
-  rearrangeCategory(draggedId: number, parentId: number): Observable<void> {
-    return this.http.put<void>(`${this.apiUrl}/api/categories/rearrange`, { draggedId, parentId });
-  }
-}
+export class AppModule { }
