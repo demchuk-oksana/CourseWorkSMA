@@ -1,4 +1,29 @@
-<div *ngIf="exampleData">
-  <h1>Data from Backend:</h1>
-  <pre>{{ exampleData | json }}</pre>
+<div *ngIf="errorMessage" class="error">
+  {{ errorMessage }}
+</div>
+
+<ul *ngIf="categoryTree.length > 0">
+  <ng-container *ngFor="let category of categoryTree">
+    <li>
+      {{ category.name }}
+      <!-- Recursive structure for nested categories -->
+      <ul *ngIf="category.children && category.children.length > 0">
+        <ng-container *ngFor="let child of category.children">
+          <li>
+            {{ child.name }}
+            <!-- Continue nesting if deeper structure exists -->
+            <ul *ngIf="child.children && child.children.length > 0">
+              <ng-container *ngFor="let grandchild of child.children">
+                <li>{{ grandchild.name }}</li>
+              </ng-container>
+            </ul>
+          </li>
+        </ng-container>
+      </ul>
+    </li>
+  </ng-container>
+</ul>
+
+<div *ngIf="categoryTree.length === 0 && !errorMessage">
+  No categories found.
 </div>

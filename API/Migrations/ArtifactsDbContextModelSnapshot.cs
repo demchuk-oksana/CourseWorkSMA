@@ -86,6 +86,9 @@ namespace API.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("IsExpanded")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -255,7 +258,7 @@ namespace API.Migrations
                         .IsRequired();
 
                     b.HasOne("API.Models.User", "User")
-                        .WithMany("Feedbacks")
+                        .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -267,13 +270,11 @@ namespace API.Migrations
 
             modelBuilder.Entity("API.Models.ArtifactVersion", b =>
                 {
-                    b.HasOne("API.Models.SoftwareDevArtifact", "Artifact")
+                    b.HasOne("API.Models.SoftwareDevArtifact", null)
                         .WithMany("Versions")
                         .HasForeignKey("SoftwareDevArtifactId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("Artifact");
                 });
 
             modelBuilder.Entity("API.Models.Category", b =>
@@ -295,7 +296,7 @@ namespace API.Migrations
                         .IsRequired();
 
                     b.HasOne("API.Models.User", "User")
-                        .WithMany("DownloadHistory")
+                        .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -320,7 +321,7 @@ namespace API.Migrations
                         .IsRequired();
 
                     b.HasOne("API.Models.User", "Uploader")
-                        .WithMany("UploadedArtifacts")
+                        .WithMany()
                         .HasForeignKey("UploaderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -339,7 +340,7 @@ namespace API.Migrations
                         .IsRequired();
 
                     b.HasOne("API.Models.User", "User")
-                        .WithMany("CategoryPreferences")
+                        .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -361,17 +362,6 @@ namespace API.Migrations
                     b.Navigation("Feedbacks");
 
                     b.Navigation("Versions");
-                });
-
-            modelBuilder.Entity("API.Models.User", b =>
-                {
-                    b.Navigation("CategoryPreferences");
-
-                    b.Navigation("DownloadHistory");
-
-                    b.Navigation("Feedbacks");
-
-                    b.Navigation("UploadedArtifacts");
                 });
 #pragma warning restore 612, 618
         }

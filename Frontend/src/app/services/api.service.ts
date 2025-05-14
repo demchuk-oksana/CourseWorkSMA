@@ -11,9 +11,9 @@ export class ApiService {
 
   constructor(private http: HttpClient) {}
 
-  // Example: Fetch data from the backend
-  getExampleData(): Observable<any> {
-    return this.http.get<any>(`${this.apiUrl}/api/example`); // Adjust the endpoint as per your API
+  // Method to fetch the category tree
+  getCategoryTree(): Observable<any> {
+    return this.http.get<any>(`${this.apiUrl}/categories/tree`);
   }
 
   // Example: Send data to the backend
