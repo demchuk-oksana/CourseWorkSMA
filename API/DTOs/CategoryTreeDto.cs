@@ -6,4 +6,5 @@ public class CategoryTreeDto
     public string Name { get; set; }
     public int? ParentCategoryId { get; set; }
     public List<CategoryTreeDto> Subcategories { get; set; } = new();
+    public bool IsExpanded { get; set; } // NEW - Expansion state for UI
 }

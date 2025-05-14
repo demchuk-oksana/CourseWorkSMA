@@ -11,7 +11,9 @@ public class Category
 
     public List<SoftwareDevArtifact> Artifacts { get; set; } = new();
 
-    public int OrderIndex { get; set; } // NEW — used for drag-drop reordering
+     public int OrderIndex { get; set; } // Used for drag-and-drop reordering
+
+    public bool IsExpanded { get; set; } // NEW - Expansion state for UI
 
     public void AddSubcategory(Category subcategory) => Subcategories.Add(subcategory);
     public void DeleteSubcategory(Category subcategory) => Subcategories.Remove(subcategory);

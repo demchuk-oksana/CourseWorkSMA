@@ -44,32 +44,32 @@ public class CategoryRepository : Repository<Category>, ICategoryRepository
             .ToList();
     }
 
-    public void Rearrange(int categoryId, int? newParentId, int newPosition = 0)
+   public void Rearrange(int categoryId, int? newParentId, int newPosition = 0)
+{
+    var category = _context.Categories.FirstOrDefault(c => c.Id == categoryId);
+    if (category == null) throw new Exception("Category not found");
+
+    if (category.ParentCategoryId != newParentId)
     {
-        var category = _context.Categories.FirstOrDefault(c => c.Id == categoryId);
-        if (category == null) throw new Exception("Category not found");
-
-        if (category.ParentCategoryId != newParentId)
-        {
-            category.ParentCategoryId = newParentId;
-        }
-
-        // Reorder siblings under new parent
-        var siblings = _context.Categories
-            .Where(c => c.ParentCategoryId == newParentId && c.Id != categoryId)
-            .OrderBy(c => c.OrderIndex)
-            .ToList();
-
-        siblings.Insert(newPosition, category);
-
-        for (int i = 0; i < siblings.Count; i++)
-        {
-            siblings[i].OrderIndex = i;
-            _context.Categories.Update(siblings[i]);
-        }
-        
-        _context.SaveChanges();
+        category.ParentCategoryId = newParentId;
     }
+
+    // Reorder siblings under new parent
+    var siblings = _context.Categories
+        .Where(c => c.ParentCategoryId == newParentId && c.Id != categoryId)
+        .OrderBy(c => c.OrderIndex)
+        .ToList();
+
+    siblings.Insert(newPosition, category);
+
+    for (int i = 0; i < siblings.Count; i++)
+    {
+        siblings[i].OrderIndex = i;
+        _context.Categories.Update(siblings[i]);
+    }
+
+    _context.SaveChanges();
+}
 
     public bool IsCategoryEmpty(int categoryId)
     {
