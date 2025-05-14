@@ -28,12 +28,11 @@ public class CategoryRepository : Repository<Category>, ICategoryRepository
 
     public IEnumerable<Category> GetRootCategories()
     {
-        return _context.Categories
-            .Where(c => c.ParentCategoryId == null)
-            .Include(c => c.Subcategories)
-            .OrderBy(c => c.OrderIndex)
-            .ToList();
-
+    return _context.Categories
+        .Where(c => c.ParentCategoryId == null)
+        .Include(c => c.Subcategories)
+        .ThenInclude(sc => sc.Subcategories) // Nested subcategories
+        .ToList();
     }
 
     public IEnumerable<Category> GetSubcategories(int parentId)

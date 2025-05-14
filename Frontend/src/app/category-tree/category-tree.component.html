@@ -1,24 +1,16 @@
-<div class="tree-container">
-  <ul class="tree">
-    <li *ngFor="let node of treeData" [class.expanded]="node.isExpanded">
-      <div
-        class="tree-node"
-        [style.paddingLeft.px]="node.level * 20"
-        draggable="true"
-        (dragstart)="onDragStart($event, node)"
-        (contextmenu)="onContextMenu($event, node)"
-      >
-        <span class="toggle" (click)="toggleExpand(node)">
-          {{ node.isExpanded ? '-' : '+' }}
-        </span>
-        {{ node.name }}
-      </div>
-      <app-category-tree
-        *ngIf="node.isExpanded && node.children"
-        [treeData]="node.children"
-        (dragover)="allowDrop($event)"
-        (drop)="onDrop($event, node)"
-      ></app-category-tree>
-    </li>
-  </ul>
-</div>
+<ul class="tree">
+  <li *ngFor="let node of treeData">
+    <div class="tree-node">
+      <!-- Expand/Collapse Toggle -->
+      <button class="toggle" (click)="toggleExpand(node)">
+        {{ node.isExpanded ? '-' : '+' }}
+      </button>
+      {{ node.name }}
+    </div>
+
+    <!-- Recursively render subcategories if the node is expanded -->
+    <ul *ngIf="node.isExpanded && node.subcategories?.length > 0">
+      <app-category-tree [treeData]="node.subcategories"></app-category-tree>
+    </ul>
+  </li>
+</ul>

@@ -5,16 +5,29 @@
 <ul *ngIf="categoryTree.length > 0">
   <ng-container *ngFor="let category of categoryTree">
     <li>
+      <button (click)="toggleExpand(category)">
+        {{ category.isExpanded ? '-' : '+' }}
+      </button>
       {{ category.name }}
-      <!-- Recursive structure for nested categories -->
-      <ul *ngIf="category.children && category.children.length > 0">
-        <ng-container *ngFor="let child of category.children">
+      
+      <!-- Render subcategories if the category is expanded -->
+      <ul *ngIf="category.isExpanded && category.subcategories?.length > 0">
+        <ng-container *ngFor="let child of category.subcategories">
           <li>
+            <button (click)="toggleExpand(child)">
+              {{ child.isExpanded ? '-' : '+' }}
+            </button>
             {{ child.name }}
+            
             <!-- Continue nesting if deeper structure exists -->
-            <ul *ngIf="child.children && child.children.length > 0">
-              <ng-container *ngFor="let grandchild of child.children">
-                <li>{{ grandchild.name }}</li>
+            <ul *ngIf="child.isExpanded && child.subcategories?.length > 0">
+              <ng-container *ngFor="let grandchild of child.subcategories">
+                <li>
+                  <button (click)="toggleExpand(grandchild)">
+                    {{ grandchild.isExpanded ? '-' : '+' }}
+                  </button>
+                  {{ grandchild.name }}
+                </li>
               </ng-container>
             </ul>
           </li>

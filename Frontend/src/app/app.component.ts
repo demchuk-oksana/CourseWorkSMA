@@ -29,4 +29,9 @@ export class AppComponent implements OnInit {
       },
     });
   }
+
+  // Method to toggle the expanded state of a category
+  toggleExpand(category: any): void {
+    category.isExpanded = !category.isExpanded;
+  }
 }

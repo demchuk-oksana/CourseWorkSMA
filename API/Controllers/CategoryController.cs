@@ -20,13 +20,26 @@ public class CategoryController : ControllerBase
         _mapper = mapper;
     }
 
+    
+    private CategoryTreeDto BuildCategoryTree(Category category)
+    {
+        return new CategoryTreeDto
+        {
+            Id = category.Id,
+            Name = category.Name,
+            ParentCategoryId = category.ParentCategoryId,
+            Subcategories = category.Subcategories.Select(BuildCategoryTree).ToList(),
+            IsExpanded = category.IsExpanded
+        };
+    }
+
     // GET: /api/categories/tree
     [HttpGet("tree")]
     public IActionResult GetCategoryTree()
     {
         var rootCategories = _uow.CategoryRepository.GetRootCategories();
-        var treeDto = _mapper.Map<List<CategoryTreeDto>>(rootCategories);
-        return Ok(treeDto);
+        var treeDtos = rootCategories.Select(BuildCategoryTree).ToList();
+        return Ok(treeDtos);
     }
 
     [Authorize]
