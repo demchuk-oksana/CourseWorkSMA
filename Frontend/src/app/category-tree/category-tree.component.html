@@ -1,32 +1,24 @@
 <div class="tree-container">
-  <ul>
-    <ng-container *ngFor="let node of treeData">
-      <li>
-        <div
-          class="tree-node"
-          [style.paddingLeft.px]="node.level * 20"
-          (contextmenu)="onContextMenu($event, node)"
-        >
-          <span
-            class="expand-icon"
-            (click)="toggleExpand(node)"
-            *ngIf="node.children && node.children.length > 0"
-          >
-            {{ node.isExpanded ? '-' : '+' }}
-          </span>
-          <span
-            draggable="true"
-            (dragstart)="onDragStart($event, node)"
-            (drop)="onDrop($event, node)"
-            (dragover)="allowDrop($event)"
-          >
-            {{ node.name }}
-          </span>
-        </div>
-        <ul *ngIf="node.children && node.isExpanded">
-          <app-category-tree [treeData]="node.children"></app-category-tree>
-        </ul>
-      </li>
-    </ng-container>
+  <ul class="tree">
+    <li *ngFor="let node of treeData" [class.expanded]="node.isExpanded">
+      <div
+        class="tree-node"
+        [style.paddingLeft.px]="node.level * 20"
+        draggable="true"
+        (dragstart)="onDragStart($event, node)"
+        (contextmenu)="onContextMenu($event, node)"
+      >
+        <span class="toggle" (click)="toggleExpand(node)">
+          {{ node.isExpanded ? '-' : '+' }}
+        </span>
+        {{ node.name }}
+      </div>
+      <app-category-tree
+        *ngIf="node.isExpanded && node.children"
+        [treeData]="node.children"
+        (dragover)="allowDrop($event)"
+        (drop)="onDrop($event, node)"
+      ></app-category-tree>
+    </li>
   </ul>
 </div>

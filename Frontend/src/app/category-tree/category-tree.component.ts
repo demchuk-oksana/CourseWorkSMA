@@ -1,5 +1,5 @@
 import { Component, Input, OnInit } from '@angular/core';
-import { CategoryTreeService } from '../../services/category-tree.service';
+import { CategoryTreeService } from '../services/category-tree.service';
 
 @Component({
   selector: 'app-category-tree',
@@ -7,7 +7,7 @@ import { CategoryTreeService } from '../../services/category-tree.service';
   styleUrls: ['./category-tree.component.css']
 })
 export class CategoryTreeComponent implements OnInit {
-  @Input() treeData: any[] = [];
+  @Input() treeData: any[] = []; // Input for hierarchical data
 
   constructor(private categoryService: CategoryTreeService) {}
 
@@ -17,6 +17,7 @@ export class CategoryTreeComponent implements OnInit {
     }
   }
 
+  // Fetch data from the service
   fetchTreeData(): void {
     this.categoryService.getCategoryTree().subscribe(
       (data) => {
@@ -28,14 +29,17 @@ export class CategoryTreeComponent implements OnInit {
     );
   }
 
+  // Toggle expand/collapse state
   toggleExpand(node: any): void {
     node.isExpanded = !node.isExpanded;
   }
 
+  // Handle drag start event
   onDragStart(event: DragEvent, node: any): void {
     event.dataTransfer?.setData('text/plain', JSON.stringify(node));
   }
 
+  // Handle drop event
   onDrop(event: DragEvent, parentNode: any): void {
     event.preventDefault();
     const draggedNode = JSON.parse(event.dataTransfer?.getData('text/plain') || '{}');
@@ -50,10 +54,12 @@ export class CategoryTreeComponent implements OnInit {
     );
   }
 
+  // Allow drop on valid targets
   allowDrop(event: DragEvent): void {
     event.preventDefault();
   }
 
+  // Show context menu
   onContextMenu(event: MouseEvent, node: any): void {
     event.preventDefault();
     alert(`Context menu for ${node.name}`);
