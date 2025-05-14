@@ -3,6 +3,7 @@ using API.Models;
 using API.UnitOfWork;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
+using AutoMapper;
 
 namespace API.Controllers;
 
@@ -11,18 +12,21 @@ namespace API.Controllers;
 public class CategoryController : ControllerBase
 {
     private readonly IUnitOfWork _uow;
+    private readonly IMapper _mapper;
 
-    public CategoryController(IUnitOfWork uow)
+    public CategoryController(IUnitOfWork uow, IMapper mapper)
     {
         _uow = uow;
+        _mapper = mapper;
     }
 
     // GET: /api/categories/tree
     [HttpGet("tree")]
     public IActionResult GetCategoryTree()
     {
-        var roots = _uow.CategoryRepository.GetRootCategories();
-        return Ok(roots);
+        var rootCategories = _uow.CategoryRepository.GetRootCategories();
+        var treeDto = _mapper.Map<List<CategoryTreeDto>>(rootCategories);
+        return Ok(treeDto);
     }
 
     [Authorize]

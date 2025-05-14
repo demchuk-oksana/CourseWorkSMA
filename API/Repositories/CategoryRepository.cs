@@ -14,6 +14,18 @@ public class CategoryRepository : Repository<Category>, ICategoryRepository
         _context = context;
     }
 
+     public void ChangeNestingLevel(int categoryId, int? newParentId)
+    {
+        var category = _context.Categories.FirstOrDefault(c => c.Id == categoryId);
+        if (category == null) throw new Exception("Category not found");
+
+        category.ParentCategoryId = newParentId;
+
+        // Update the category in the database
+        _context.Categories.Update(category);
+        _context.SaveChanges();
+    }
+
     public IEnumerable<Category> GetRootCategories()
     {
         return _context.Categories
@@ -55,6 +67,8 @@ public class CategoryRepository : Repository<Category>, ICategoryRepository
             siblings[i].OrderIndex = i;
             _context.Categories.Update(siblings[i]);
         }
+        
+        _context.SaveChanges();
     }
 
     public bool IsCategoryEmpty(int categoryId)
@@ -85,6 +99,7 @@ public class CategoryRepository : Repository<Category>, ICategoryRepository
                 IsExpanded = isExpanded
             });
         }
+        _context.SaveChanges();
     }
 
     public bool? GetDisplayPreference(int categoryId, int userId)
