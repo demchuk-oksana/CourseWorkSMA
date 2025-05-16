@@ -20,4 +20,19 @@ export class CategoryTreeService {
   rearrangeCategory(draggedId: number, parentId: number): Observable<void> {
     return this.http.put<void>(`${this.apiUrl}/api/categories/rearrange`, { draggedId, parentId });
   }
+
+   // Rename a category
+  renameCategory(categoryId: number, newName: string): Observable<void> {
+    return this.http.put<void>(`${this.apiUrl}/api/categories/${categoryId}`, { newName });
+  }
+
+  // Create a new category
+  createCategory(name: string, parentCategoryId: number): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/api/categories`, { name, parentCategoryId });
+  }
+
+  // Delete a category
+  deleteCategory(categoryId: number): Observable<void> {
+    return this.http.delete<void>(`${this.apiUrl}/api/categories/${categoryId}`);
+  }
 }

@@ -1,23 +1,135 @@
-import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
-import { environment } from '../../environments/environment';
+import { Component, Input, OnInit } from '@angular/core';
+import { CategoryTreeService } from '../services/category-tree.service';
 
-@Injectable({
-  providedIn: 'root'
+@Component({
+  selector: 'app-category-tree',
+  templateUrl: './category-tree.component.html',
+  styleUrls: ['./category-tree.component.css']
 })
-export class CategoryTreeService {
-  private apiUrl = environment.apiUrl;
+export class CategoryTreeComponent implements OnInit {
+  @Input() treeData: any[] = []; // Hierarchical data for the tree
 
-  constructor(private http: HttpClient) {}
+  // State for the context menu
+  contextMenuVisible = false;
+  contextMenuPosition = { x: 0, y: 0 };
+  selectedNode: any = null;
 
-  // Fetch the category tree
-  getCategoryTree(): Observable<any[]> {
-    return this.http.get<any[]>(`${this.apiUrl}/api/categories`);
+  constructor(private categoryService: CategoryTreeService) {}
+
+  ngOnInit(): void {}
+
+  // Toggle expand/collapse state
+  toggleExpand(node: any): void {
+    node.isExpanded = !node.isExpanded;
   }
 
-  // Rearrange categories (drag-and-drop)
-  rearrangeCategory(draggedId: number, parentId: number): Observable<void> {
-    return this.http.put<void>(`${this.apiUrl}/api/categories/rearrange`, { draggedId, parentId });
+  // Drag-and-drop: Handle drag start
+  onDragStart(event: DragEvent, node: any): void {
+    event.dataTransfer?.setData('text/plain', JSON.stringify(node));
+  }
+
+  // Drag-and-drop: Allow drop
+  allowDrop(event: DragEvent): void {
+    event.preventDefault();
+  }
+
+  // Drag-and-drop: Handle drop
+  onDrop(event: DragEvent, targetNode: any): void {
+    event.preventDefault();
+    const draggedNode = JSON.parse(event.dataTransfer?.getData('text/plain') || '{}');
+
+    if (draggedNode.id !== targetNode.id) {
+      // Call the backend to update the parent
+      this.categoryService.rearrangeCategory(draggedNode.id, targetNode.id).subscribe(
+        () => {
+          // Update the tree structure locally
+          targetNode.subcategories = targetNode.subcategories || [];
+          targetNode.subcategories.push(draggedNode);
+          draggedNode.parentCategoryId = targetNode.id;
+        },
+        (error) => {
+          console.error('Error rearranging category:', error);
+        }
+      );
+    }
+  }
+
+  // Context menu: Open menu
+  onContextMenu(event: MouseEvent, node: any): void {
+    event.preventDefault();
+    this.contextMenuPosition = { x: event.clientX, y: event.clientY };
+    this.selectedNode = node;
+    this.contextMenuVisible = true;
+  }
+
+  // Context menu: Close menu
+  closeContextMenu(): void {
+    this.contextMenuVisible = false;
+    this.selectedNode = null;
+  }
+
+  // Context menu: Add subcategory
+  addSubcategory(): void {
+    const subcategoryName = prompt('Enter the name of the new subcategory:');
+    if (subcategoryName) {
+      this.categoryService.createCategory(subcategoryName, this.selectedNode.id).subscribe(
+        (newCategory) => {
+          this.selectedNode.subcategories = this.selectedNode.subcategories || [];
+          this.selectedNode.subcategories.push(newCategory);
+        },
+        (error) => {
+          console.error('Error creating subcategory:', error);
+        }
+      );
+    }
+    this.closeContextMenu();
+  }
+
+  // Context menu: Rename category
+  renameCategory(): void {
+    const newName = prompt('Enter the new name for the category:', this.selectedNode.name);
+    if (newName) {
+      this.categoryService.renameCategory(this.selectedNode.id, newName).subscribe(
+        () => {
+          this.selectedNode.name = newName;
+        },
+        (error) => {
+          console.error('Error renaming category:', error);
+        }
+      );
+    }
+    this.closeContextMenu();
+  }
+
+  // Context menu: Delete category
+  deleteCategory(): void {
+    if (confirm('Are you sure you want to delete this category?')) {
+      this.categoryService.deleteCategory(this.selectedNode.id).subscribe(
+        () => {
+          const parent = this.findParentNode(this.selectedNode, this.treeData);
+          if (parent) {
+            parent.subcategories = parent.subcategories.filter((child: any) => child.id !== this.selectedNode.id);
+          }
+        },
+        (error) => {
+          console.error('Error deleting category:', error);
+        }
+      );
+    }
+    this.closeContextMenu();
+  }
+
+  // Helper: Find the parent of a node
+  private findParentNode(targetNode: any, nodes: any[]): any {
+    for (const node of nodes) {
+      if (node.subcategories?.some((child: any) => child.id === targetNode.id)) {
+        return node;
+      }
+      const parent = this.findParentNode(targetNode, node.subcategories || []);
+      if (parent) {
+        return parent;
+      }
+    }
+    return null;
   }
 }

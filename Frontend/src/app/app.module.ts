@@ -13,7 +13,8 @@ import { CategoryTreeComponent } from './category-tree/category-tree.component';
   imports: [
     BrowserModule, // Provides Angular's core browser functionality
     HttpClientModule, // For making HTTP requests in services
-    CommonModule, // Add CommonModule here
+    CommonModule,
+    CategoryTreeComponent 
   ],
   providers: [],
   bootstrap: [AppComponent], // Bootstraps the AppComponent

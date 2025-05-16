@@ -1,16 +1,38 @@
-<ul class="tree">
-  <li *ngFor="let node of treeData">
-    <div class="tree-node">
-      <!-- Expand/Collapse Toggle -->
-      <button class="toggle" (click)="toggleExpand(node)">
-        {{ node.isExpanded ? '-' : '+' }}
-      </button>
-      {{ node.name }}
-    </div>
+<div class="tree-container">
+  <ul class="tree">
+    <li *ngFor="let node of treeData" [class.expanded]="node.isExpanded">
+      <!-- Node -->
+      <div
+        class="tree-node"
+        draggable="true"
+        (dragstart)="onDragStart($event, node)"
+        (contextmenu)="onContextMenu($event, node)"
+      >
+        <span class="toggle" (click)="toggleExpand(node)">
+          {{ node.isExpanded ? '▼' : '▶' }}
+        </span>
+        <span [class.folder]="!node.isFile" [class.file]="node.isFile">
+          {{ node.name }}
+        </span>
+      </div>
 
-    <!-- Recursively render subcategories if the node is expanded -->
-    <ul *ngIf="node.isExpanded && node.subcategories?.length > 0">
-      <app-category-tree [treeData]="node.subcategories"></app-category-tree>
-    </ul>
-  </li>
-</ul>
+      <!-- Subcategories -->
+      <ul *ngIf="node.isExpanded && node.subcategories?.length > 0">
+        <app-category-tree [treeData]="node.subcategories"></app-category-tree>
+      </ul>
+    </li>
+  </ul>
+
+  <!-- Context Menu -->
+  <div
+    class="context-menu"
+    *ngIf="contextMenuVisible"
+    [style.left.px]="contextMenuPosition.x"
+    [style.top.px]="contextMenuPosition.y"
+    (mouseleave)="closeContextMenu()"
+  >
+    <button (click)="addSubcategory()">Add Subcategory</button>
+    <button (click)="renameCategory()">Rename</button>
+    <button (click)="deleteCategory()">Delete</button>
+  </div>
+</div>
