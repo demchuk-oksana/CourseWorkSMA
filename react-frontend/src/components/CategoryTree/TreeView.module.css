@@ -1,0 +1,79 @@
+.treeWrapper {
+  background: #f7f7fa;
+  border-radius: 8px;
+  padding: 16px;
+  font-family: 'Segoe UI', sans-serif;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+}
+
+.nodeHeader {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 2px 8px;
+  min-height: 30px;
+  transition: background 0.2s;
+}
+
+.nodeHeader:hover {
+  background: #e8f1ff;
+}
+
+.level0 { background: #dbeafe; font-weight: bold; }
+.level1 { background: #e0f7fa; }
+.level2 { background: #e8fce8; }
+.level3 { background: #fffbe7; }
+
+.expandIcon, .expandSpacer {
+  width: 20px;
+  display: inline-block;
+  user-select: none;
+}
+
+.folderIcon {
+  margin-right: 8px;
+}
+
+.nodeName {
+  font-size: 1rem;
+  margin-left: 2px;
+}
+
+.artifactRow {
+  display: flex;
+  align-items: center;
+  background: #fff5e7;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-top: 2px;
+  font-size: 0.98rem;
+}
+
+.artifactIcon {
+  margin-right: 8px;
+}
+
+.contextMenu {
+  background: #fff;
+  border: 1px solid #c0c0c0;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+  border-radius: 6px;
+  min-width: 180px;
+  padding: 4px 0;
+  position: absolute;
+  z-index: 9999;
+}
+
+.contextMenuItem {
+  padding: 8px 16px;
+  cursor: pointer;
+}
+
+.contextMenuItem:hover {
+  background: #e8f1ff;
+}
+
+.dragging {
+  opacity: 0.5;
+}
