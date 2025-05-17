@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode } from "react";
-import jwtDecode from "jwt-decode";
+import { jwtDecode }  from "jwt-decode";
 
 type AuthState = {
   accessToken: string | null;

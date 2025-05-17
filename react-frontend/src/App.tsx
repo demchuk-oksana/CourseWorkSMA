@@ -1,14 +1,15 @@
-import React from 'react';
-import logo from './logo.svg';
-import './App.css';
-import TreeView from "./components/CategoryTree/TreeView";
+import React from "react";
+import { BrowserRouter } from "react-router-dom";
+import { AuthProvider } from "./hooks/useAuth";
+import AppRoutes from "./routes/AppRoutes";
 
 function App() {
   return (
-    <div>
-      <h1>Unity Physics Components Repository Directory Tree</h1>
-      <TreeView />
-    </div>
+    <AuthProvider>
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>
+    </AuthProvider>
   );
 }
 
