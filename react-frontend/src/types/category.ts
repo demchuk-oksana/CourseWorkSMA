@@ -1,13 +1,10 @@
-export interface Artifact {
-  id: number;
-  name: string;
-}
+import { Artifact } from "./artifact";
 
 export interface Category {
   id: number;
   name: string;
   parentCategoryId?: number | null;
   subcategories: Category[];
-  artifacts: Artifact[];
+  artifacts?: Artifact[];
   isExpanded?: boolean;
 }

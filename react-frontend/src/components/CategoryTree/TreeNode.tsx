@@ -1,5 +1,6 @@
 import React, { useState, useRef } from "react";
-import { Category, Artifact } from "../../types/category";
+import { Category } from "../../types/category";
+import { Artifact } from "../../types/artifact";
 import styles from "./TreeView.module.css";
 import clsx from "clsx";
 
@@ -74,7 +75,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
                 style={{ marginLeft: (level + 1) * 24 }}
               >
                 <span className={styles.artifactIcon}>📄</span>
-                {artifact.name}
+                {artifact.title}
               </div>
             ))}
         </div>

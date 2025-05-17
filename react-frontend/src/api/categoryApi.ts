@@ -1,92 +1,28 @@
-import { Category } from "../types/category";
+import axios from 'axios';
+import { Category } from '../types/category';
 
-// Example mock data that matches your screenshot
-const mockCategoryTree: Category[] = [
-  {
-    id: 1,
-    name: "Unity_Physics_Components",
-    parentCategoryId: null,
-    isExpanded: true,
-    subcategories: [
-      {
-        id: 2,
-        name: "Collision_Detection",
-        parentCategoryId: 1,
-        isExpanded: true,
-        subcategories: [
-          {
-            id: 3,
-            name: "Colliders",
-            parentCategoryId: 2,
-            isExpanded: true,
-            subcategories: [],
-            artifacts: [
-              { id: 1, name: "BoxCollider_Implementation.cs" },
-              { id: 2, name: "SphereCollider_Implementation.cs" },
-              { id: 3, name: "MeshCollider_Implementation.cs" },
-            ],
-          },
-          {
-            id: 4,
-            name: "Collision_Events",
-            parentCategoryId: 2,
-            isExpanded: true,
-            subcategories: [],
-            artifacts: [
-              { id: 4, name: "OnCollisionEnter_Example.cs" },
-              { id: 5, name: "TriggerDetection_System.cs" },
-            ],
-          },
-        ],
-        artifacts: [],
-      },
-      {
-        id: 5,
-        name: "Physical_Materials",
-        parentCategoryId: 1,
-        isExpanded: true,
-        subcategories: [
-          {
-            id: 6,
-            name: "Friction_Models",
-            parentCategoryId: 5,
-            isExpanded: true,
-            subcategories: [],
-            artifacts: [
-              { id: 6, name: "Static_Friction_Calculator.cs" },
-            ],
-          },
-        ],
-        artifacts: [],
-      },
-      {
-        id: 7,
-        name: "Rigidbody",
-        parentCategoryId: 1,
-        isExpanded: true,
-        subcategories: [
-          {
-            id: 8,
-            name: "Forces_And_Torque",
-            parentCategoryId: 7,
-            isExpanded: true,
-            subcategories: [],
-            artifacts: [
-              { id: 7, name: "AddForce_Implementation.cs" },
-              { id: 8, name: "AddTorque_Example.cs" },
-            ],
-          },
-        ],
-        artifacts: [],
-      },
-    ],
-    artifacts: [],
-  },
-];
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5064/api';
 
-// Simulate an API call
+/**
+ * Fetch the category tree from the backend.
+ * Note: This only returns categories, not artifacts. Artifacts should be fetched separately per category.
+ */
 export const getCategoryTree = async (): Promise<Category[]> => {
-  // Add a delay for realism
-  await new Promise((resolve) => setTimeout(resolve, 400));
-  return mockCategoryTree;
+  const response = await axios.get<Category[]>(`${API_BASE_URL}/categories/tree`);
+  // Each category will have an empty artifacts array; artifacts must be populated separately.
+  return response.data.map(cat => ({
+    ...cat,
+    artifacts: []
+  }));
+};
+
+// If you want to create a category, here's a helper (optional)
+export interface CategoryDto {
+  name: string;
+  parentCategoryId?: number | null;
+}
+
+export const createCategory = async (category: CategoryDto) => {
+  const response = await axios.post(`${API_BASE_URL}/categories`, category);
+  return response.data;
 };
