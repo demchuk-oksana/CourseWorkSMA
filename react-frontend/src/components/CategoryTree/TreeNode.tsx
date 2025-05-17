@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React from "react";
 import { Category } from "../../types/category";
 import { Artifact } from "../../types/artifact";
 import styles from "./TreeView.module.css";
@@ -28,6 +28,12 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   const isDragging = draggingNodeId === node.id;
   const indent = { marginLeft: `${level * 24}px` };
 
+  // Is expandable if there are subcategories, or if artifacts could be loaded (artifacts undefined), or if loaded and there are artifacts
+  const isExpandable =
+    (node.subcategories && node.subcategories.length > 0) ||
+    node.artifacts === undefined ||
+    (node.artifacts && node.artifacts.length > 0);
+
   return (
     <div>
       <div
@@ -41,7 +47,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         onDragOver={(e) => onDragOver(e, node)}
         onDrop={(e) => onDrop(e, node)}
       >
-        {node.subcategories && node.subcategories.length > 0 ? (
+        {isExpandable ? (
           <span className={styles.expandIcon} onClick={() => onToggle(node.id)}>
             {node.isExpanded ? "▼" : "▶"}
           </span>

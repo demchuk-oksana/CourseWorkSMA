@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Category } from "../../types/category";
 import { getCategoryTree } from "../../api/categoryApi";
+import { getArtifactsByCategory } from "../../api/artifactApi";
 import TreeNode from "./TreeNode";
 import styles from "./TreeView.module.css";
 
@@ -54,15 +55,68 @@ const TreeView: React.FC = () => {
       .finally(() => setLoading(false));
   }, []);
 
-  const handleToggle = (id: number) => {
-    // Recursively toggle isExpanded
-    const toggle = (nodes: Category[]): Category[] =>
-      nodes.map((n) =>
-        n.id === id
-          ? { ...n, isExpanded: !n.isExpanded }
-          : { ...n, subcategories: toggle(n.subcategories || []) }
+  // Helper: recursively update a node by id
+  const updateNodeById = (
+    nodes: Category[],
+    id: number,
+    updater: (node: Category) => Category
+  ): Category[] => {
+    return nodes.map((n) =>
+      n.id === id
+        ? updater(n)
+        : {
+            ...n,
+            subcategories: n.subcategories
+              ? updateNodeById(n.subcategories, id, updater)
+              : [],
+          }
+    );
+  };
+
+  const handleToggle = async (id: number) => {
+    // Find the toggled node and see if it needs to load artifacts
+    let nodeToToggle: Category | undefined;
+    const findNode = (nodes: Category[]): void => {
+      for (const n of nodes) {
+        if (n.id === id) {
+          nodeToToggle = n;
+          return;
+        }
+        if (n.subcategories) findNode(n.subcategories);
+      }
+    };
+    findNode(tree);
+
+    // If node is being expanded and has not loaded artifacts yet, fetch them
+    if (nodeToToggle && !nodeToToggle.isExpanded && nodeToToggle.artifacts === undefined) {
+      try {
+        const artifacts = await getArtifactsByCategory(id);
+        setTree((prev) =>
+          updateNodeById(prev, id, (node) => ({
+            ...node,
+            isExpanded: true,
+            artifacts: artifacts,
+          }))
+        );
+      } catch (err) {
+        // still expand, but with artifacts as empty
+        setTree((prev) =>
+          updateNodeById(prev, id, (node) => ({
+            ...node,
+            isExpanded: true,
+            artifacts: [],
+          }))
+        );
+      }
+    } else {
+      // Just toggle expanded/collapsed
+      setTree((prev) =>
+        updateNodeById(prev, id, (node) => ({
+          ...node,
+          isExpanded: !node.isExpanded,
+        }))
       );
-    setTree((prev) => toggle(prev));
+    }
   };
 
   const handleContextMenu = (
