@@ -27,14 +27,14 @@ const LoginPage: React.FC = () => {
       setIsLoading(true);
       setError(null);
       
-      // Call your authentication API
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ username, password }),
-      });
+    // Call your authentication API using the full backend URL
+    const response = await fetch('http://localhost:5064/api/auth/login', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ username, password }),
+    });
       
       if (!response.ok) {
         const errorData = await response.json();
