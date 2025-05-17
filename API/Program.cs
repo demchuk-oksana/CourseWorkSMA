@@ -23,12 +23,12 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowFrontend",
         policy =>
         {
-            policy.WithOrigins("http://localhost:4200") // Allow only frontend origin
-                  .AllowAnyHeader()                   // Allow any HTTP headers
-                  .AllowAnyMethod();                  // Allow any HTTP methods (GET, POST, etc.)
+            policy.WithOrigins("http://localhost:3000") // Updated to match your frontend URL
+                  .AllowAnyHeader()
+                  .AllowAnyMethod()
+                  .AllowCredentials(); // Added to support credentials if needed
         });
 });
-
 
 // 🔐 Load RSA keys
 var rsaKeyService = new RSAKeyService();
@@ -125,15 +125,8 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-// Use CORS
+// Use CORS - important to place this before Authentication and Authorization
 app.UseCors("AllowFrontend");
-
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
-
 
 // 🔐 Enable auth
 app.UseAuthentication();
