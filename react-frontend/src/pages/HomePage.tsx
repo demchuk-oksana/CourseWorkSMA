@@ -1,3 +1,4 @@
+import React from "react";
 import { useState, useEffect, useCallback } from "react";
 import { getCategoryTree } from "../api/categoryApi";
 import { getArtifactsByCategory } from "../api/artifactApi";
@@ -78,3 +79,22 @@ export function useCategories() {
     loadArtifactsForCategory,
   };
 }
+
+// === Add HomePage React component ===
+
+const HomePage: React.FC = () => {
+  const { categories, loading } = useCategories();
+
+  return (
+    <div>
+      <h1>Home Page</h1>
+      {loading ? (
+        <div>Loading...</div>
+      ) : (
+        <pre style={{textAlign: "left"}}>{JSON.stringify(categories, null, 2)}</pre>
+      )}
+    </div>
+  );
+};
+
+export default HomePage;
