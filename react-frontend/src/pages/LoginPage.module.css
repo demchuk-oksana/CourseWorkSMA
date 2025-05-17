@@ -36,6 +36,15 @@
   font-size: 0.98rem;
 }
 
+.loginSuccess {
+  background: #ecf9ec;
+  color: #166534;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  margin-bottom: 0.5rem;
+  font-size: 0.98rem;
+}
+
 .loginForm {
   display: flex;
   flex-direction: column;
@@ -85,6 +94,30 @@
 
 .loginButton:disabled {
   background: #93c5fd;
+  cursor: not-allowed;
+}
+
+.toggleContainer {
+  text-align: center;
+  margin-top: 0.5rem;
+}
+
+.toggleModeButton {
+  background: none;
+  border: none;
+  color: #2563eb;
+  font-size: 0.9rem;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0.5rem;
+}
+
+.toggleModeButton:hover {
+  color: #1e40af;
+}
+
+.toggleModeButton:disabled {
+  color: #93c5fd;
   cursor: not-allowed;
 }
 
