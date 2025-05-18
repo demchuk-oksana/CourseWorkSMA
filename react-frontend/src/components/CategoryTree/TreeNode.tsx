@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef } from "react";
 import { Category } from "../../types/category";
 import { Artifact } from "../../types/artifact";
 import styles from "./TreeView.module.css";
@@ -10,9 +10,19 @@ interface TreeNodeProps {
   onToggle: (id: number) => void;
   onContextMenu: (event: React.MouseEvent, node: Category) => void;
   onDragStart: (event: React.DragEvent, node: Category) => void;
-  onDragOver: (event: React.DragEvent, node: Category) => void;
-  onDrop: (event: React.DragEvent, node: Category) => void;
+  onDragEnd: (event: React.DragEvent) => void;
+  onDragOver: (
+    event: React.DragEvent,
+    node: Category,
+    nodeElement: HTMLElement
+  ) => void;
+  onDrop: (
+    event: React.DragEvent,
+    node: Category,
+    nodeElement: HTMLElement
+  ) => void;
   draggingNodeId: number | null;
+  dragOver?: { nodeId: number; position: "above" | "below" | "inside" | null } | null;
 }
 
 const TreeNode: React.FC<TreeNodeProps> = ({
@@ -21,12 +31,27 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   onToggle,
   onContextMenu,
   onDragStart,
+  onDragEnd,
   onDragOver,
   onDrop,
   draggingNodeId,
+  dragOver,
 }) => {
   const isDragging = draggingNodeId === node.id;
   const indent = { marginLeft: `${level * 24}px` };
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Drag-over styling
+  let dragOverStyle: React.CSSProperties = {};
+  if (dragOver && dragOver.nodeId === node.id) {
+    if (dragOver.position === "above") {
+      dragOverStyle = { borderTop: "2px solid #2196f3" };
+    } else if (dragOver.position === "below") {
+      dragOverStyle = { borderBottom: "2px solid #2196f3" };
+    } else if (dragOver.position === "inside") {
+      dragOverStyle = { background: "#e3f2fd" };
+    }
+  }
 
   // Is expandable if there are subcategories, or if artifacts could be loaded (artifacts undefined), or if loaded and there are artifacts
   const isExpandable =
@@ -37,19 +62,29 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   return (
     <div>
       <div
+        ref={ref}
         className={clsx(styles.nodeHeader, styles[`level${level}`], {
           [styles.dragging]: isDragging,
         })}
-        style={indent}
+        style={{ ...indent, ...dragOverStyle }}
         onContextMenu={(e) => onContextMenu(e, node)}
         draggable
         onDragStart={(e) => onDragStart(e, node)}
-        onDragOver={(e) => onDragOver(e, node)}
-        onDrop={(e) => onDrop(e, node)}
+        onDragEnd={onDragEnd}
+        onDragOver={
+          (e) => {
+            if (ref.current) onDragOver(e, node, ref.current);
+          }
+        }
+        onDrop={
+          (e) => {
+            if (ref.current) onDrop(e, node, ref.current);
+          }
+        }
       >
         {isExpandable ? (
           <span className={styles.expandIcon} onClick={() => onToggle(node.id)}>
-            {node.isExpanded ? "▼" : "▶"}
+            {node.isExpanded ? "\u25bc" : "\u25b6"}
           </span>
         ) : (
           <span className={styles.expandSpacer} />
@@ -68,9 +103,11 @@ const TreeNode: React.FC<TreeNodeProps> = ({
                 onToggle={onToggle}
                 onContextMenu={onContextMenu}
                 onDragStart={onDragStart}
+                onDragEnd={onDragEnd}
                 onDragOver={onDragOver}
                 onDrop={onDrop}
                 draggingNodeId={draggingNodeId}
+                dragOver={dragOver}
               />
             ))}
           {node.artifacts &&
