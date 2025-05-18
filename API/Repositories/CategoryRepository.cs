@@ -26,14 +26,34 @@ public class CategoryRepository : Repository<Category>, ICategoryRepository
         _context.SaveChanges();
     }
 
-    public IEnumerable<Category> GetRootCategories()
-    {
-    return _context.Categories
-        .Where(c => c.ParentCategoryId == null)
-        .Include(c => c.Subcategories)
-        .ThenInclude(sc => sc.Subcategories) // Nested subcategories
+   public IEnumerable<Category> GetRootCategories()
+{
+    // Load all categories from the DB (single query)
+    var allCategories = _context.Categories
+        .AsNoTracking()
         .ToList();
+
+    // Create a dictionary for quick lookup
+    var categoryDict = allCategories.ToDictionary(c => c.Id);
+
+    // Reset Subcategories to avoid duplication
+    foreach (var category in allCategories)
+    {
+        category.Subcategories = new List<Category>();
     }
+
+    // Assign each category to its parent
+    foreach (var category in allCategories)
+    {
+        if (category.ParentCategoryId.HasValue && categoryDict.TryGetValue(category.ParentCategoryId.Value, out var parent))
+        {
+            parent.Subcategories.Add(category);
+        }
+    }
+
+    // Only return root categories (no parent)
+    return allCategories.Where(c => c.ParentCategoryId == null).ToList();
+}
 
     public IEnumerable<Category> GetSubcategories(int parentId)
     {

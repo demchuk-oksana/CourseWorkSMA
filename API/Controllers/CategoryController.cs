@@ -4,6 +4,7 @@ using API.UnitOfWork;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using AutoMapper;
+using Microsoft.EntityFrameworkCore; // Add this for AsNoTracking if needed
 
 namespace API.Controllers;
 
@@ -20,7 +21,6 @@ public class CategoryController : ControllerBase
         _mapper = mapper;
     }
 
-    
     private CategoryTreeDto BuildCategoryTree(Category category)
     {
         return new CategoryTreeDto
@@ -83,6 +83,10 @@ public class CategoryController : ControllerBase
     [HttpDelete("{id}")]
     public IActionResult Delete(int id)
     {
+        // Clear the EF Core change tracker before checking for emptiness
+        // This ensures we don't have stale navigation collections (important if the artifact was just deleted)
+        _uow.ClearChangeTracker(); // You'll need to add this method to your UnitOfWork
+
         var category = _uow.CategoryRepository.GetById(id);
         if (category == null) return NotFound();
 

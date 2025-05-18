@@ -24,5 +24,6 @@ public class UnitOfWork : IUnitOfWork, IDisposable
     }
 
     public void Save() => _context.SaveChanges();
+    public void ClearChangeTracker() => _context.ChangeTracker.Clear();
     public void Dispose() => _context.Dispose();
 }

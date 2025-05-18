@@ -9,5 +9,7 @@ public interface IUnitOfWork
     IUserRepository UserRepository { get; }
     IDownloadRepository DownloadRepository { get; }
     IFeedbackRepository FeedbackRepository { get; }
+    
     void Save();
+    void ClearChangeTracker(); // Added for refreshing the EF Core ChangeTracker
 }

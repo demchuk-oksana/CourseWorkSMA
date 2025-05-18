@@ -23,6 +23,7 @@ interface TreeNodeProps {
   ) => void;
   draggingNodeId: number | null;
   dragOver?: { nodeId: number; position: "above" | "below" | "inside" | null } | null;
+  onArtifactContextMenu?: (event: React.MouseEvent, artifact: Artifact, categoryId: number) => void;
 }
 
 const TreeNode: React.FC<TreeNodeProps> = ({
@@ -36,6 +37,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   onDrop,
   draggingNodeId,
   dragOver,
+  onArtifactContextMenu,
 }) => {
   const isDragging = draggingNodeId === node.id;
   const indent = { marginLeft: `${level * 24}px` };
@@ -108,6 +110,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
                 onDrop={onDrop}
                 draggingNodeId={draggingNodeId}
                 dragOver={dragOver}
+                onArtifactContextMenu={onArtifactContextMenu}
               />
             ))}
           {node.artifacts &&
@@ -116,6 +119,13 @@ const TreeNode: React.FC<TreeNodeProps> = ({
                 key={artifact.id}
                 className={styles.artifactRow}
                 style={{ marginLeft: (level + 1) * 24 }}
+                onContextMenu={onArtifactContextMenu
+                  ? (e) => {
+                      e.stopPropagation();
+                      onArtifactContextMenu(e, artifact, node.id);
+                    }
+                  : undefined
+                }
               >
                 <span className={styles.artifactIcon}>📄</span>
                 {artifact.title}

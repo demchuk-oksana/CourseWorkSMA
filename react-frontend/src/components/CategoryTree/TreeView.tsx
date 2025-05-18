@@ -7,10 +7,18 @@ import { getArtifactsByCategory } from "../../api/artifactApi";
 import axios from "axios";
 import { useAuth } from "../../hooks/useAuth";
 
+// --- Types for category and artifact context menu state ---
 interface ContextMenuState {
   x: number;
   y: number;
   node: Category | null;
+}
+
+interface ArtifactContextMenuState {
+  x: number;
+  y: number;
+  artifact: any | null;
+  categoryId: number | null;
 }
 
 type DropPosition = "above" | "below" | "inside" | null;
@@ -20,20 +28,78 @@ interface DragOverState {
   position: DropPosition;
 }
 
+// --- Modal types ---
+type ModalType =
+  | null
+  | "createCategory"
+  | "addArtifact"
+  | "error"
+  | "addVersion"
+  | "showVersions";
+
+interface ArtifactVersion {
+  id: number;
+  versionNumber: string;
+  uploadDate: string;
+  changes: string;
+  downloadUrl: string;
+  softwareDevArtifactId: number;
+}
+
+const DEFAULT_ARTIFACT_FIELDS = {
+  title: "",
+  description: "",
+  url: "",
+  type: 0,
+  version: "1.0.0",
+  programmingLanguage: "",
+  framework: "",
+  licenseType: "",
+  categoryId: undefined as number | undefined,
+};
+
+const DEFAULT_VERSION_FIELDS = {
+  versionNumber: "",
+  changes: "",
+  downloadUrl: "",
+};
+
 const TreeView: React.FC = () => {
   const [tree, setTree] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [artifactMenu, setArtifactMenu] = useState<ArtifactContextMenuState | null>(null);
+
   const [draggingNodeId, setDraggingNodeId] = useState<number | null>(null);
   const [dragOver, setDragOver] = useState<DragOverState | null>(null);
+
+  const [modal, setModal] = useState<ModalType>(null);
+
+  // Modal fields
+  const [categoryInput, setCategoryInput] = useState("");
+  const [artifactFields, setArtifactFields] = useState({ ...DEFAULT_ARTIFACT_FIELDS });
+  const [versionFields, setVersionFields] = useState({ ...DEFAULT_VERSION_FIELDS });
+
+  const [modalData, setModalData] = useState<any>(null);
+
+  const [error, setError] = useState<string | null>(null);
+
+  const [artifactVersions, setArtifactVersions] = useState<ArtifactVersion[] | null>(null);
+
   const { auth } = useAuth();
 
   useEffect(() => {
+    fetchTree();
+  }, []);
+
+  const fetchTree = () => {
+    setLoading(true);
     getCategoryTree()
       .then(setTree)
-      .catch(console.error)
+      .catch((err) => setError("Failed to load category tree"))
       .finally(() => setLoading(false));
-  }, []);
+  };
 
   // Recursively update a node by id
   const updateNodeById = (
@@ -67,21 +133,6 @@ const TreeView: React.FC = () => {
       }
     }
     return { node: null, parent: null };
-  };
-
-  // Check if potentialParentId is a descendant of nodeId
-  const isDescendant = (
-    nodes: Category[],
-    nodeId: number,
-    potentialParentId: number
-  ): boolean => {
-    const { node } = findNodeAndParent(nodes, nodeId);
-    if (!node || !node.subcategories) return false;
-    for (const sub of node.subcategories) {
-      if (sub.id === potentialParentId) return true;
-      if (isDescendant([sub], sub.id, potentialParentId)) return true;
-    }
-    return false;
   };
 
   // Remove a node by id and return the new tree and the removed node
@@ -133,28 +184,15 @@ const TreeView: React.FC = () => {
     });
   };
 
-  // Insert node at root (shouldn't be used but utility provided)
-  const insertAtRoot = (
-    nodes: Category[],
-    node: Category,
-    position: number
-  ): Category[] => {
-    const newNodes = [...nodes];
-    newNodes.splice(position, 0, node);
-    return newNodes;
-  };
-
-  // Find index of childId among parent's subcategories
   const findChildIndex = (parent: Category, childId: number): number => {
     return parent.subcategories
       ? parent.subcategories.findIndex((c) => c.id === childId)
       : -1;
   };
 
-  // Helper to clear dragOver state
   const clearDragOver = () => setDragOver(null);
 
-  // Drag and drop logic
+  // --- Drag and drop logic for categories (not artifacts) ---
   const handleDragStart = (event: React.DragEvent, node: Category) => {
     setDraggingNodeId(node.id);
     event.dataTransfer.effectAllowed = "move";
@@ -166,10 +204,6 @@ const TreeView: React.FC = () => {
     clearDragOver();
   };
 
-  /**
-   * Determines drop position based on mouse Y coordinate
-   * relative to the target node's bounding rect.
-   */
   const getDropPosition = (
     event: React.DragEvent,
     nodeElement: HTMLElement
@@ -181,134 +215,329 @@ const TreeView: React.FC = () => {
     return "inside";
   };
 
-  // Main drag over handler
   const handleDragOver = (
     event: React.DragEvent,
     node: Category,
     nodeElement: HTMLElement
   ) => {
     if (draggingNodeId === null) return;
-
-    // Disallow drop onto itself/descendants
     if (draggingNodeId === node.id) return;
-    if (isDescendant(tree, draggingNodeId, node.id)) return;
-
-    // Disallow moving to root
     if (node.parentCategoryId === null) return;
-
     event.preventDefault();
 
-    // Visual cue: highlight above, below, or inside
     const pos = getDropPosition(event, nodeElement);
     setDragOver({ nodeId: node.id, position: pos });
   };
 
-  const handleDrop = async (
-  event: React.DragEvent,
-  node: Category,
-  nodeElement: HTMLElement
-) => {
-  if (draggingNodeId === null) return;
-  clearDragOver();
-
-  // Disallow drop onto itself/descendants/root
-  if (draggingNodeId === node.id) return;
-  if (isDescendant(tree, draggingNodeId, node.id)) return;
-  if (node.parentCategoryId === null) return;
-
-  const pos = getDropPosition(event, nodeElement);
-
-  // Find dragged node and its current parent
-  const { node: draggedNode, parent: oldParent } = findNodeAndParent(
-    tree,
-    draggingNodeId
-  );
-  if (!draggedNode) return;
-
-  let newParentId: number;
-  let newPosition: number;
-
-  if (pos === "inside") {
-    newParentId = node.id;
-    newPosition = node.subcategories ? node.subcategories.length : 0;
-  } else {
-    const { parent: targetParent } = findNodeAndParent(tree, node.id);
-    if (!targetParent) return;
-
-    newParentId = targetParent.id;
-    const siblingIndex = findChildIndex(targetParent, node.id);
-
-    newPosition = pos === "above" ? siblingIndex : siblingIndex + 1;
-  }
-
-  if (!newParentId) return;
-
-  // Find the current parent and the index of the dragged node under that parent
-  const { parent: currentParent } = findNodeAndParent(tree, draggedNode.id);
-  let currentParentId = currentParent ? currentParent.id : null;
-  let currentIndex = -1;
-  if (currentParent && currentParent.subcategories) {
-    currentIndex = currentParent.subcategories.findIndex(
-      (c) => c.id === draggedNode.id
-    );
-  }
-
-  // If the parent and position are the same, do nothing
-  if (
-    currentParentId === newParentId &&
-    currentIndex === newPosition
-  ) {
-    setDraggingNodeId(null);
-    return;
-  }
-
-  // ---- FIX: Adjust index if moving down within same parent ----
-  if (
-    currentParentId === newParentId &&
-    currentIndex > -1 &&
-    currentIndex < newPosition
-  ) {
-    newPosition = newPosition - 1;
-  }
-  // ------------------------------------------------------------
-
-  try {
-    await axios.post(
-      "http://localhost:5064/api/categories/rearrange",
-      {
-        categoryId: draggedNode.id,
-        newParentId,
-        newPosition,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${auth.accessToken}`,
-        },
-      }
-    );
-
-    // Remove node from old location and insert at new position
-    let updatedTree = tree;
-    const { newTree, removedNode } = removeNodeById(updatedTree, draggedNode.id);
-    if (removedNode) {
-      updatedTree = insertNode(newTree, newParentId, removedNode, newPosition);
-      setTree(updatedTree);
+  const isDescendant = (
+    nodes: Category[],
+    nodeId: number,
+    potentialParentId: number
+  ): boolean => {
+    const { node } = findNodeAndParent(nodes, nodeId);
+    if (!node || !node.subcategories) return false;
+    for (const sub of node.subcategories) {
+      if (sub.id === potentialParentId) return true;
+      if (isDescendant([sub], sub.id, potentialParentId)) return true;
     }
-  } catch (err) {
-    console.error(err);
-  } finally {
-    setDraggingNodeId(null);
-  }
-};
+    return false;
+  };
 
+  const handleDrop = async (
+    event: React.DragEvent,
+    node: Category,
+    nodeElement: HTMLElement
+  ) => {
+    if (draggingNodeId === null) return;
+    clearDragOver();
+
+    if (draggingNodeId === node.id) return;
+    if (isDescendant(tree, draggingNodeId, node.id)) return;
+    if (node.parentCategoryId === null) return;
+
+    const pos = getDropPosition(event, nodeElement);
+
+    const { node: draggedNode } = findNodeAndParent(
+      tree,
+      draggingNodeId
+    );
+    if (!draggedNode) return;
+
+    let newParentId: number;
+    let newPosition: number;
+
+    if (pos === "inside") {
+      newParentId = node.id;
+      newPosition = node.subcategories ? node.subcategories.length : 0;
+    } else {
+      const { parent: targetParent } = findNodeAndParent(tree, node.id);
+      if (!targetParent) return;
+
+      newParentId = targetParent.id;
+      const siblingIndex = findChildIndex(targetParent, node.id);
+
+      newPosition = pos === "above" ? siblingIndex : siblingIndex + 1;
+    }
+
+    if (!newParentId) return;
+
+    const { parent: currentParent } = findNodeAndParent(tree, draggedNode.id);
+    let currentParentId = currentParent ? currentParent.id : null;
+    let currentIndex = -1;
+    if (currentParent && currentParent.subcategories) {
+      currentIndex = currentParent.subcategories.findIndex(
+        (c) => c.id === draggedNode.id
+      );
+    }
+
+    // No-op move
+    if (
+      currentParentId === newParentId &&
+      currentIndex === newPosition
+    ) {
+      setDraggingNodeId(null);
+      return;
+    }
+
+    // Adjust index if moving down within the same parent
+    if (
+      currentParentId === newParentId &&
+      currentIndex > -1 &&
+      currentIndex < newPosition
+    ) {
+      newPosition = newPosition - 1;
+    }
+
+    try {
+      await axios.post(
+        "http://localhost:5064/api/categories/rearrange",
+        {
+          categoryId: draggedNode.id,
+          newParentId,
+          newPosition,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${auth.accessToken}`,
+          },
+        }
+      );
+      let updatedTree = tree;
+      const { newTree, removedNode } = removeNodeById(updatedTree, draggedNode.id);
+      if (removedNode) {
+        updatedTree = insertNode(newTree, newParentId, removedNode, newPosition);
+        setTree(updatedTree);
+      }
+    } catch (err) {
+      setError("Failed to rearrange category");
+    } finally {
+      setDraggingNodeId(null);
+    }
+  };
+
+  // --- Context menu logic for categories ---
   const handleContextMenu = (
     event: React.MouseEvent,
     node: Category
   ) => {
     event.preventDefault();
     setContextMenu({ x: event.clientX, y: event.clientY, node });
+    setArtifactMenu(null);
   };
 
+  // --- Context menu logic for artifacts ---
+  const handleArtifactContextMenu = (
+    event: React.MouseEvent,
+    artifact: any,
+    categoryId: number
+  ) => {
+    event.preventDefault();
+    setArtifactMenu({ x: event.clientX, y: event.clientY, artifact, categoryId });
+    setContextMenu(null);
+  };
+
+  // --- CATEGORY OPTION: Create Category ---
+  const handleCreateCategory = () => {
+    setCategoryInput("");
+    setModalData({ parentId: contextMenu?.node?.id });
+    setModal("createCategory");
+    setContextMenu(null);
+  };
+
+  const submitCreateCategory = async () => {
+    if (!categoryInput.trim()) {
+      setError("Category name is required.");
+      return;
+    }
+    try {
+      await axios.post(
+        "http://localhost:5064/api/categories",
+        {
+          name: categoryInput.trim(),
+          parentCategoryId: modalData?.parentId
+        },
+        {
+          headers: { Authorization: `Bearer ${auth.accessToken}` },
+        }
+      );
+      fetchTree();
+      setModal(null);
+    } catch (err: any) {
+      setError("Failed to create category. " + (err?.response?.data || ""));
+    }
+  };
+
+  // --- CATEGORY OPTION: Add Artifact ---
+  const handleAddArtifact = () => {
+    setArtifactFields({
+      ...DEFAULT_ARTIFACT_FIELDS,
+      categoryId: contextMenu?.node?.id,
+    });
+    setModalData({ parentId: contextMenu?.node?.id });
+    setModal("addArtifact");
+    setContextMenu(null);
+  };
+
+  const validateUrl = (url: string) => {
+    try {
+      // Accept empty string as invalid
+      if (!url) return false;
+      new URL(url);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const validateVersion = (ver: string) => /^[0-9]+\.[0-9]+\.[0-9]+$/.test(ver);
+
+  const submitAddArtifact = async () => {
+    // Validate input
+    if (!artifactFields.title) {
+      setError("Title is required.");
+      return;
+    }
+    if (!validateUrl(artifactFields.url)) {
+      setError("URL is invalid.");
+      return;
+    }
+    if (!validateVersion(artifactFields.version)) {
+      setError("Version must be in x.x.x format.");
+      return;
+    }
+    if (!artifactFields.categoryId) {
+      setError("Category ID is required.");
+      return;
+    }
+    try {
+      await axios.post(
+        "http://localhost:5064/api/artifacts",
+        artifactFields,
+        {
+          headers: { Authorization: `Bearer ${auth.accessToken}` },
+        }
+      );
+      fetchTree();
+      setModal(null);
+    } catch (err: any) {
+      setError("Failed to add artifact. " + (err?.response?.data || ""));
+    }
+  };
+
+  // --- CATEGORY OPTION: Delete Category ---
+  const handleDeleteCategory = async () => {
+    setContextMenu(null);
+    if (!contextMenu?.node) return;
+
+    // Check if empty: no subcategories, no artifacts
+    const isEmpty =
+      (!contextMenu.node.subcategories || contextMenu.node.subcategories.length === 0) &&
+      (!contextMenu.node.artifacts || contextMenu.node.artifacts.length === 0);
+
+    if (!isEmpty) {
+      setError("Category is not empty and cannot be deleted.");
+      return;
+    }
+
+    if (!window.confirm("Are you sure you want to delete this category?")) return;
+
+    try {
+      await axios.delete(
+        `http://localhost:5064/api/categories/${contextMenu.node.id}`,
+        { headers: { Authorization: `Bearer ${auth.accessToken}` } }
+      );
+      fetchTree();
+    } catch (err: any) {
+      setError("Failed to delete category. " + (err?.response?.data || ""));
+    }
+  };
+
+  // --- ARTIFACT OPTION: Delete Artifact ---
+  const handleDeleteArtifact = async () => {
+    setArtifactMenu(null);
+    if (!artifactMenu?.artifact?.id) return;
+    if (!window.confirm("Are you sure you want to delete this artifact?")) return;
+    try {
+      await axios.delete(
+        `http://localhost:5064/api/artifacts/${artifactMenu.artifact.id}`,
+        { headers: { Authorization: `Bearer ${auth.accessToken}` } }
+      );
+      fetchTree();
+    } catch (err: any) {
+      setError("Failed to delete artifact. " + (err?.response?.data || ""));
+    }
+  };
+
+  // --- ARTIFACT OPTION: Add Version ---
+  const handleAddVersion = () => {
+    setVersionFields({ ...DEFAULT_VERSION_FIELDS });
+    setModalData({ artifactId: artifactMenu?.artifact?.id });
+    setModal("addVersion");
+    setArtifactMenu(null);
+  };
+
+  const submitAddVersion = async () => {
+    if (!validateVersion(versionFields.versionNumber)) {
+      setError("Version must be in x.x.x format.");
+      return;
+    }
+    if (!validateUrl(versionFields.downloadUrl)) {
+      setError("Download URL is invalid.");
+      return;
+    }
+    try {
+      await axios.post(
+        `http://localhost:5064/api/artifacts/${modalData?.artifactId}/versions`,
+        {
+          versionNumber: versionFields.versionNumber,
+          changes: versionFields.changes,
+          downloadUrl: versionFields.downloadUrl,
+        },
+        { headers: { Authorization: `Bearer ${auth.accessToken}` } }
+      );
+      setModal(null);
+    } catch (err: any) {
+      setError("Failed to add version. " + (err?.response?.data || ""));
+    }
+  };
+
+  // --- ARTIFACT OPTION: Show Versions ---
+  const handleShowVersions = async () => {
+    setModal("showVersions");
+    setArtifactMenu(null);
+    setArtifactVersions(null);
+    try {
+      const res = await axios.get(
+        `http://localhost:5064/api/artifacts/${artifactMenu?.artifact?.id}/versions`,
+        { headers: { Authorization: `Bearer ${auth.accessToken}` } }
+      );
+      setArtifactVersions(res.data);
+    } catch (err: any) {
+      setError("Failed to fetch versions. " + (err?.response?.data || ""));
+    }
+  };
+
+  // --- CATEGORY NODE TOGGLE (expand/collapse) ---
   const handleToggle = async (id: number) => {
     let nodeToToggle: Category | undefined;
     const findNode = (nodes: Category[]): void => {
@@ -355,10 +584,186 @@ const TreeView: React.FC = () => {
     }
   };
 
+  // --- RENDER ---
   if (loading) return <div>Loading...</div>;
 
+  // --- Modals ---
+  const renderModal = () => {
+    if (modal === "createCategory") {
+      return (
+        <div className={styles.modalBackdrop}>
+          <div className={styles.modal}>
+            <h3>Create Category</h3>
+            <input
+              type="text"
+              placeholder="Category name"
+              value={categoryInput}
+              onChange={e => setCategoryInput(e.target.value)}
+            />
+            <div className={styles.modalButtons}>
+              <button onClick={submitCreateCategory}>
+                Create
+              </button>
+              <button onClick={() => setModal(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    if (modal === "addArtifact") {
+      return (
+        <div className={styles.modalBackdrop}>
+          <div className={styles.modal}>
+            <h3>Add Software Dev Artifact</h3>
+            <input
+              type="text"
+              placeholder="Title"
+              value={artifactFields.title}
+              onChange={e => setArtifactFields({ ...artifactFields, title: e.target.value })}
+            />
+            <input
+              type="text"
+              placeholder="Description"
+              value={artifactFields.description}
+              onChange={e => setArtifactFields({ ...artifactFields, description: e.target.value })}
+            />
+            <input
+              type="url"
+              placeholder="URL"
+              value={artifactFields.url}
+              onChange={e => setArtifactFields({ ...artifactFields, url: e.target.value })}
+            />
+            <input
+              type="number"
+              placeholder="Type"
+              value={artifactFields.type}
+              onChange={e => setArtifactFields({ ...artifactFields, type: Number(e.target.value) })}
+            />
+            <input
+              type="text"
+              placeholder="Version (x.x.x)"
+              value={artifactFields.version}
+              onChange={e => setArtifactFields({ ...artifactFields, version: e.target.value })}
+            />
+            <input
+              type="text"
+              placeholder="Programming Language"
+              value={artifactFields.programmingLanguage}
+              onChange={e => setArtifactFields({ ...artifactFields, programmingLanguage: e.target.value })}
+            />
+            <input
+              type="text"
+              placeholder="Framework"
+              value={artifactFields.framework}
+              onChange={e => setArtifactFields({ ...artifactFields, framework: e.target.value })}
+            />
+            <input
+              type="text"
+              placeholder="License Type"
+              value={artifactFields.licenseType}
+              onChange={e => setArtifactFields({ ...artifactFields, licenseType: e.target.value })}
+            />
+            <div className={styles.modalButtons}>
+              <button onClick={submitAddArtifact}>Add</button>
+              <button onClick={() => setModal(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    if (modal === "addVersion") {
+      return (
+        <div className={styles.modalBackdrop}>
+          <div className={styles.modal}>
+            <h3>Add Version</h3>
+            <input
+              type="text"
+              placeholder="Version (x.x.x)"
+              value={versionFields.versionNumber}
+              onChange={e => setVersionFields({ ...versionFields, versionNumber: e.target.value })}
+            />
+            <input
+              type="text"
+              placeholder="Changes"
+              value={versionFields.changes}
+              onChange={e => setVersionFields({ ...versionFields, changes: e.target.value })}
+            />
+            <input
+              type="url"
+              placeholder="Download URL"
+              value={versionFields.downloadUrl}
+              onChange={e => setVersionFields({ ...versionFields, downloadUrl: e.target.value })}
+            />
+            <div className={styles.modalButtons}>
+              <button onClick={submitAddVersion}>Add</button>
+              <button onClick={() => setModal(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    if (modal === "showVersions") {
+      return (
+        <div className={styles.modalBackdrop}>
+          <div className={styles.modal}>
+            <h3>Artifact Versions</h3>
+            {artifactVersions === null ? (
+              <div>Loading...</div>
+            ) : (
+              <ul>
+                {artifactVersions.length === 0 && <li>No versions found.</li>}
+                {artifactVersions.map(ver => (
+                  <li key={ver.id}>
+                    <b>{ver.versionNumber}</b> - {ver.changes} <br />
+                    <a href={ver.downloadUrl} target="_blank" rel="noopener noreferrer">
+                      Download
+                    </a>
+                    <br />
+                    <span>
+                      Uploaded: {new Date(ver.uploadDate).toLocaleString()}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className={styles.modalButtons}>
+              <button onClick={() => setModal(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    // Error modal
+    if (error) {
+      return (
+        <div className={styles.modalBackdrop}>
+          <div className={styles.modal}>
+            <div style={{ color: "red" }}>{error}</div>
+            <div className={styles.modalButtons}>
+              <button
+                onClick={() => {
+                  setError(null);
+                  setModal(null);
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  // --- Main render ---
   return (
-    <div className={styles.treeWrapper}>
+    <div className={styles.treeWrapper} tabIndex={-1}
+      onClick={() => {
+        setContextMenu(null);
+        setArtifactMenu(null);
+      }}
+    >
       {tree.map((node) => (
         <TreeNode
           key={node.id}
@@ -372,31 +777,51 @@ const TreeView: React.FC = () => {
           onDrop={handleDrop}
           draggingNodeId={draggingNodeId}
           dragOver={dragOver}
+          onArtifactContextMenu={handleArtifactContextMenu}
         />
       ))}
+
+      {/* --- Category Context Menu --- */}
       {contextMenu && contextMenu.node && (
         <div
           className={styles.contextMenu}
           style={{ left: contextMenu.x, top: contextMenu.y }}
         >
-          <div
-            className={styles.contextMenuItem}
-            onClick={() => {
-              setContextMenu(null);
-            }}
-          >
+          <div className={styles.contextMenuItem} onClick={handleCreateCategory}>
             Create category
+          </div>
+          <div className={styles.contextMenuItem} onClick={handleAddArtifact}>
+            Add software dev artifact
           </div>
           <div
             className={styles.contextMenuItem}
-            onClick={() => {
-              setContextMenu(null);
-            }}
+            onClick={handleDeleteCategory}
           >
-            Add software dev artifact
+            Delete category
           </div>
         </div>
       )}
+
+      {/* --- Artifact Context Menu --- */}
+      {artifactMenu && artifactMenu.artifact && (
+        <div
+          className={styles.contextMenu}
+          style={{ left: artifactMenu.x, top: artifactMenu.y }}
+        >
+          <div className={styles.contextMenuItem} onClick={handleDeleteArtifact}>
+            Delete artifact
+          </div>
+          <div className={styles.contextMenuItem} onClick={handleAddVersion}>
+            Add version
+          </div>
+          <div className={styles.contextMenuItem} onClick={handleShowVersions}>
+            Display all versions
+          </div>
+        </div>
+      )}
+
+      {/* --- Modals for all actions/errors --- */}
+      {(modal || error) && renderModal()}
     </div>
   );
 };
