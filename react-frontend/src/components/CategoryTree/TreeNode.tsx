@@ -26,6 +26,11 @@ interface TreeNodeProps {
   dragOver?: { nodeId: number; position: "above" | "below" | "inside" | null } | null;
   onArtifactContextMenu?: (event: React.MouseEvent, artifact: Artifact, categoryId: number) => void;
   onDoubleClick?: (node: Category) => void;
+  // Selection
+  selectedCategoryId?: number | null;
+  selectedArtifactId?: number | null;
+  onNodeClick?: (categoryId: number) => void;
+  onArtifactClick?: (artifactId: number, categoryId: number) => void;
 }
 
 const TreeNode: React.FC<TreeNodeProps> = ({
@@ -42,12 +47,15 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   dragOver,
   onArtifactContextMenu,
   onDoubleClick,
+  selectedCategoryId,
+  selectedArtifactId,
+  onNodeClick,
+  onArtifactClick,
 }) => {
   const isDragging = draggingNodeId === node.id;
   const indent = { marginLeft: `${level * indentation}px` };
   const ref = useRef<HTMLDivElement>(null);
 
-  // Drag-over styling
   let dragOverStyle: React.CSSProperties = {};
   if (dragOver && dragOver.nodeId === node.id) {
     if (dragOver.position === "above") {
@@ -59,8 +67,8 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     }
   }
 
-  // Always show expand/collapse icon
   const isExpandable = true;
+  const isSelected = selectedCategoryId === node.id && !selectedArtifactId;
 
   return (
     <div>
@@ -68,6 +76,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         ref={ref}
         className={clsx(styles.nodeHeader, styles[`level${level}`], {
           [styles.dragging]: isDragging,
+          [styles.selected]: isSelected,
         })}
         style={{ ...indent, ...dragOverStyle }}
         onContextMenu={(e) => onContextMenu(e, node)}
@@ -85,9 +94,14 @@ const TreeNode: React.FC<TreeNodeProps> = ({
           }
         }
         onDoubleClick={() => onDoubleClick && onDoubleClick(node)}
+        onClick={(e) => {
+          e.stopPropagation();
+          onNodeClick && onNodeClick(node.id);
+        }}
+        tabIndex={-1}
       >
         {isExpandable ? (
-          <span className={styles.expandIcon} onClick={() => onToggle(node.id)}>
+          <span className={styles.expandIcon} onClick={(e) => { e.stopPropagation(); onToggle(node.id); }}>
             {node.isExpanded ? "\u25bc" : "\u25b6"}
           </span>
         ) : (
@@ -115,26 +129,38 @@ const TreeNode: React.FC<TreeNodeProps> = ({
                 dragOver={dragOver}
                 onArtifactContextMenu={onArtifactContextMenu}
                 onDoubleClick={onDoubleClick}
+                selectedCategoryId={selectedCategoryId}
+                selectedArtifactId={selectedArtifactId}
+                onNodeClick={onNodeClick}
+                onArtifactClick={onArtifactClick}
               />
             ))}
           {node.artifacts &&
-            node.artifacts.map((artifact: Artifact) => (
-              <div
-                key={artifact.id}
-                className={styles.artifactRow}
-                style={{ marginLeft: ((level + 1) * indentation) }}
-                onContextMenu={onArtifactContextMenu
-                  ? (e) => {
-                      e.stopPropagation();
-                      onArtifactContextMenu(e, artifact, node.id);
-                    }
-                  : undefined
-                }
-              >
-                <span className={styles.artifactIcon}>📄</span>
-                {artifact.title}
-              </div>
-            ))}
+            node.artifacts.map((artifact: Artifact) => {
+              const isArtifactSelected = selectedArtifactId === artifact.id && selectedCategoryId === node.id;
+              return (
+                <div
+                  key={artifact.id}
+                  className={clsx(styles.artifactRow, { [styles.selected]: isArtifactSelected })}
+                  style={{ marginLeft: ((level + 1) * indentation) }}
+                  onContextMenu={onArtifactContextMenu
+                    ? (e) => {
+                        e.stopPropagation();
+                        onArtifactContextMenu(e, artifact, node.id);
+                      }
+                    : undefined
+                  }
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onArtifactClick && onArtifactClick(artifact.id, node.id);
+                  }}
+                  tabIndex={-1}
+                >
+                  <span className={styles.artifactIcon}>📄</span>
+                  {artifact.title}
+                </div>
+              );
+            })}
         </div>
       )}
     </div>

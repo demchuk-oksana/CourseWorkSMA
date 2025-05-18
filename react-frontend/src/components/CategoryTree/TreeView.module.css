@@ -162,4 +162,252 @@
   font-weight: bold;
 }
 
-/* ...rest of your styles... */
+.selected {
+  background: #e3f2fd !important;
+  outline: 2px solid #1976d2 !important;
+}
+
+/* --- Additions for modals and menus --- */
+
+/* Modal Backdrop */
+.modalBackdrop {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Modal Container */
+.modal {
+  background: #fff;
+  border-radius: 13px;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.18), 0 1.5px 4px rgba(0,0,0,0.12);
+  padding: 36px 30px 28px 30px;
+  min-width: 320px;
+  max-width: 96vw;
+  min-height: 180px;
+  position: relative;
+}
+
+.addMenuModal {
+  border: 2px solid #1976d2;
+  background: linear-gradient(100deg, #f5faff 60%, #e5eeff 100%);
+}
+
+/* Make the add menu modal smaller width */
+.addMenuModalSmall {
+  min-width: 220px !important;
+  max-width: 330px !important;
+  width: 320px !important;
+}
+
+/* Modal Title */
+.modalTitle {
+  margin-top: 0;
+  margin-bottom: 22px;
+  font-size: 1.3em;
+  font-weight: 600;
+  color: #1976d2;
+  text-align: center;
+}
+
+/* Modal Input */
+.modalInput {
+  width: 100%;
+  margin-bottom: 14px;
+  padding: 8px 10px;
+  border: 1.5px solid #b9c7ea;
+  border-radius: 5px;
+  font-size: 1em;
+  background: #f8fbff;
+  transition: border 0.2s;
+}
+.modalInput:focus {
+  border: 1.5px solid #1976d2;
+  outline: none;
+  background: #f5faff;
+}
+
+/* Modal Buttons */
+.modalButtons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 8px;
+}
+.modalButton {
+  padding: 6px 18px;
+  background: #1976d2;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-weight: 500;
+  font-size: 1em;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.modalButton:hover,
+.modalButton:focus {
+  background: #1562b1;
+}
+
+/* Context Menu */
+.contextMenu {
+  position: fixed;
+  z-index: 1200;
+  background: #fff;
+  border: 1.5px solid #1976d2;
+  border-radius: 7px;
+  box-shadow: 0 4px 16px rgba(25,118,210,0.07), 0 1.5px 4px rgba(0,0,0,0.10);
+  padding: 3px 0;
+  min-width: 180px;
+  font-size: 1em;
+  animation: fadeInMenu 0.14s;
+}
+
+@keyframes fadeInMenu {
+  from { opacity: 0; transform: translateY(8px);}
+  to { opacity: 1; transform: translateY(0);}
+}
+
+.contextMenuItem {
+  padding: 8px 18px;
+  cursor: pointer;
+  color: #1976d2;
+  border-radius: 5px;
+  transition: background 0.11s, color 0.11s;
+}
+.contextMenuItem:hover,
+.contextMenuItem:focus {
+  background: #eaf1fc;
+  color: #125ea7;
+}
+
+/* Indentation control */
+.indentationControlWrapper {
+  position: absolute;
+  top: 14px;
+  right: 30px;
+}
+.indentationControl {
+  background: #f5faff;
+  border-radius: 7px;
+  padding: 5px 18px 5px 9px;
+  border: 1.5px solid #dbe7fa;
+  font-size: 1em;
+  color: #1976d2;
+}
+.indentationInput {
+  margin-left: 7px;
+  font-size: 1em;
+  border: 1.2px solid #b9c7ea;
+  border-radius: 5px;
+  padding: 3px 7px;
+  background: #f8fbff;
+}
+
+/* Breadcrumb bar */
+.breadcrumbBar {
+  margin: 10px 0 18px 0;
+  font-size: 1.08em;
+  color: #1976d2;
+  user-select: none;
+}
+.breadcrumbSegment {
+  cursor: pointer;
+  padding: 0 3px;
+}
+.breadcrumbSegment:hover {
+  text-decoration: underline;
+  color: #125ea7;
+}
+.breadcrumbSeparator {
+  margin: 0 2px;
+  color: #b7c7df;
+}
+
+.treeWrapper:focus {
+  outline: 2px solid #1976d2;
+}
+
+/* Context Menu */
+.contextMenu {
+  position: fixed;
+  z-index: 1200;
+  background: #fff;
+  border: 1.5px solid #1976d2;
+  border-radius: 7px;
+  box-shadow: 0 4px 16px rgba(25,118,210,0.07), 0 1.5px 4px rgba(0,0,0,0.10);
+  padding: 3px 0;
+  min-width: 180px;
+  font-size: 1em;
+  animation: fadeInMenu 0.14s;
+}
+
+@keyframes fadeInMenu {
+  from { opacity: 0; transform: translateY(8px);}
+  to { opacity: 1; transform: translateY(0);}
+}
+
+.contextMenuItem {
+  padding: 8px 18px;
+  cursor: pointer;
+  color: #1976d2;
+  border-radius: 5px;
+  transition: background 0.11s, color 0.11s;
+}
+.contextMenuItem:hover,
+.contextMenuItem:focus {
+  background: #eaf1fc;
+  color: #125ea7;
+}
+
+/* Indentation control */
+.indentationControlWrapper {
+  position: absolute;
+  top: 14px;
+  right: 30px;
+}
+.indentationControl {
+  background: #f5faff;
+  border-radius: 7px;
+  padding: 5px 18px 5px 9px;
+  border: 1.5px solid #dbe7fa;
+  font-size: 1em;
+  color: #1976d2;
+}
+.indentationInput {
+  margin-left: 7px;
+  font-size: 1em;
+  border: 1.2px solid #b9c7ea;
+  border-radius: 5px;
+  padding: 3px 7px;
+  background: #f8fbff;
+}
+
+/* Breadcrumb bar */
+.breadcrumbBar {
+  margin: 10px 0 18px 0;
+  font-size: 1.08em;
+  color: #1976d2;
+  user-select: none;
+}
+.breadcrumbSegment {
+  cursor: pointer;
+  padding: 0 3px;
+}
+.breadcrumbSegment:hover {
+  text-decoration: underline;
+  color: #125ea7;
+}
+.breadcrumbSeparator {
+  margin: 0 2px;
+  color: #b7c7df;
+}
+
+.treeWrapper:focus {
+  outline: 2px solid #1976d2;
+}

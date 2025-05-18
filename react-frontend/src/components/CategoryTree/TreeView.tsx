@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { Category } from "../../types/category";
 import TreeNode from "./TreeNode";
 import styles from "./TreeView.module.css";
@@ -7,7 +8,6 @@ import { useAuth } from "../../hooks/useAuth";
 import { getCategoryTree, setCategoryDisplayPreference } from "../../api/categoryApi";
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5064/api';
 
-// --- Types for category and artifact context menu state ---
 interface ContextMenuState {
   x: number;
   y: number;
@@ -28,7 +28,6 @@ interface DragOverState {
   position: DropPosition;
 }
 
-// --- Modal types ---
 type ModalType =
   | null
   | "createCategory"
@@ -66,6 +65,55 @@ const DEFAULT_VERSION_FIELDS = {
 
 const DEFAULT_INDENTATION = 24;
 
+interface FlatEntry {
+  type: "category" | "artifact";
+  id: number;
+  parentCategoryId: number | null;
+  category: Category;
+  artifact?: any;
+  level: number;
+}
+
+const flattenTree = (
+  nodes: Category[],
+  level = 0,
+  parentCategoryId: number | null = null
+): FlatEntry[] => {
+  let entries: FlatEntry[] = [];
+  for (const node of nodes) {
+    entries.push({
+      type: "category",
+      id: node.id,
+      parentCategoryId,
+      category: node,
+      level,
+    });
+    if (node.isExpanded && node.subcategories) {
+      entries = entries.concat(flattenTree(node.subcategories, level + 1, node.id));
+    }
+    if (node.isExpanded && node.artifacts) {
+      for (const artifact of node.artifacts) {
+        entries.push({
+          type: "artifact",
+          id: artifact.id,
+          parentCategoryId: node.id,
+          category: node,
+          artifact,
+          level: level + 1,
+        });
+      }
+    }
+  }
+  return entries;
+};
+
+type ModalUndoRedoState = {
+  modal: ModalType;
+  modalData: any;
+  artifactFields?: typeof DEFAULT_ARTIFACT_FIELDS;
+  categoryInput?: string;
+};
+
 const TreeView: React.FC = () => {
   const [tree, setTree] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,7 +126,6 @@ const TreeView: React.FC = () => {
 
   const [modal, setModal] = useState<ModalType>(null);
 
-  // Modal fields
   const [categoryInput, setCategoryInput] = useState("");
   const [artifactFields, setArtifactFields] = useState({ ...DEFAULT_ARTIFACT_FIELDS });
   const [versionFields, setVersionFields] = useState({ ...DEFAULT_VERSION_FIELDS });
@@ -91,25 +138,43 @@ const TreeView: React.FC = () => {
 
   const { auth } = useAuth();
 
-  // --- Focused category state for "focused mode" and breadcrumb ---
   const [focusedCategoryId, setFocusedCategoryId] = useState<number | null>(null);
 
-  // --- Indentation state ---
   const [indentation, setIndentation] = useState<number>(DEFAULT_INDENTATION);
+
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+  const [selectedArtifactId, setSelectedArtifactId] = useState<number | null>(null);
+
+  const [modalUndoStack, setModalUndoStack] = useState<ModalUndoRedoState[]>([]);
+  const [modalRedoStack, setModalRedoStack] = useState<ModalUndoRedoState[]>([]);
+
+  const treeRootRef = useRef<HTMLDivElement>(null);
+  const createCategoryFirstInputRef = useRef<HTMLInputElement>(null);
+  const addArtifactFirstInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchTree();
+    if (treeRootRef.current) {
+      treeRootRef.current.focus();
+    }
   }, []);
+
+  useEffect(() => {
+    if (modal === "createCategory" && createCategoryFirstInputRef.current) {
+      createCategoryFirstInputRef.current.focus();
+    } else if (modal === "addArtifact" && addArtifactFirstInputRef.current) {
+      addArtifactFirstInputRef.current.focus();
+    }
+  }, [modal]);
 
   const fetchTree = () => {
     setLoading(true);
     getCategoryTree(auth.accessToken ?? undefined)
       .then(setTree)
-      .catch((err) => setError("Failed to load category tree"))
+      .catch(() => setError("Failed to load category tree"))
       .finally(() => setLoading(false));
   };
 
-  // Recursively update a node by id
   const updateNodeById = (
     nodes: Category[],
     id: number,
@@ -127,7 +192,6 @@ const TreeView: React.FC = () => {
     );
   };
 
-  // Find a node and its parent
   const findNodeAndParent = (
     nodes: Category[],
     id: number,
@@ -143,7 +207,6 @@ const TreeView: React.FC = () => {
     return { node: null, parent: null };
   };
 
-  // Find a node by id (no parent)
   const findNodeById = (nodes: Category[], id: number): Category | null => {
     for (const n of nodes) {
       if (n.id === id) return n;
@@ -155,7 +218,6 @@ const TreeView: React.FC = () => {
     return null;
   };
 
-  // Build a breadcrumb path to the focused node
   const buildBreadcrumbPath = (nodes: Category[], id: number): Category[] => {
     const path: Category[] = [];
     const traverse = (currentNodes: Category[], targetId: number): boolean => {
@@ -177,7 +239,6 @@ const TreeView: React.FC = () => {
     return path;
   };
 
-  // Remove a node by id and return the new tree and the removed node
   const removeNodeById = (
     nodes: Category[],
     id: number
@@ -203,7 +264,6 @@ const TreeView: React.FC = () => {
     return { newTree, removedNode };
   };
 
-  // Insert a node under parentId at a specific position
   const insertNode = (
     nodes: Category[],
     parentId: number,
@@ -234,7 +294,6 @@ const TreeView: React.FC = () => {
 
   const clearDragOver = () => setDragOver(null);
 
-  // --- Drag and drop logic for categories (not artifacts) ---
   const handleDragStart = (event: React.DragEvent, node: Category) => {
     setDraggingNodeId(node.id);
     event.dataTransfer.effectAllowed = "move";
@@ -332,7 +391,6 @@ const TreeView: React.FC = () => {
       );
     }
 
-    // No-op move
     if (
       currentParentId === newParentId &&
       currentIndex === newPosition
@@ -341,7 +399,6 @@ const TreeView: React.FC = () => {
       return;
     }
 
-    // Adjust index if moving down within the same parent
     if (
       currentParentId === newParentId &&
       currentIndex > -1 &&
@@ -352,7 +409,7 @@ const TreeView: React.FC = () => {
 
     try {
       await axios.post(
-        "http://localhost:5064/api/categories/rearrange",
+        `${API_BASE_URL}/categories/rearrange`,
         {
           categoryId: draggedNode.id,
           newParentId,
@@ -377,7 +434,6 @@ const TreeView: React.FC = () => {
     }
   };
 
-  // --- Context menu logic for categories ---
   const handleContextMenu = (
     event: React.MouseEvent,
     node: Category
@@ -387,7 +443,6 @@ const TreeView: React.FC = () => {
     setArtifactMenu(null);
   };
 
-  // --- Context menu logic for artifacts ---
   const handleArtifactContextMenu = (
     event: React.MouseEvent,
     artifact: any,
@@ -398,10 +453,18 @@ const TreeView: React.FC = () => {
     setContextMenu(null);
   };
 
-  // --- CATEGORY OPTION: Create Category ---
   const handleCreateCategory = () => {
+    setModalUndoStack((stack) => [
+      ...stack,
+      {
+        modal: "createCategory",
+        modalData: { parentId: contextMenu?.node?.id ?? undefined },
+        categoryInput: "",
+      },
+    ]);
+    setModalRedoStack([]);
     setCategoryInput("");
-    setModalData({ parentId: contextMenu?.node?.id });
+    setModalData({ parentId: contextMenu?.node?.id ?? undefined });
     setModal("createCategory");
     setContextMenu(null);
   };
@@ -413,10 +476,10 @@ const TreeView: React.FC = () => {
     }
     try {
       await axios.post(
-        "http://localhost:5064/api/categories",
+        `${API_BASE_URL}/categories`,
         {
           name: categoryInput.trim(),
-          parentCategoryId: modalData?.parentId
+          parentCategoryId: modalData?.parentId ?? undefined
         },
         {
           headers: { Authorization: `Bearer ${auth.accessToken}` },
@@ -424,25 +487,33 @@ const TreeView: React.FC = () => {
       );
       fetchTree();
       setModal(null);
+      setTimeout(() => treeRootRef.current?.focus(), 0);
     } catch (err: any) {
       setError("Failed to create category. " + (err?.response?.data || ""));
     }
   };
 
-  // --- CATEGORY OPTION: Add Artifact ---
   const handleAddArtifact = () => {
+    setModalUndoStack((stack) => [
+      ...stack,
+      {
+        modal: "addArtifact",
+        modalData: { parentId: contextMenu?.node?.id ?? undefined },
+        artifactFields: { ...DEFAULT_ARTIFACT_FIELDS, categoryId: contextMenu?.node?.id ?? undefined },
+      },
+    ]);
+    setModalRedoStack([]);
     setArtifactFields({
       ...DEFAULT_ARTIFACT_FIELDS,
-      categoryId: contextMenu?.node?.id,
+      categoryId: contextMenu?.node?.id ?? undefined,
     });
-    setModalData({ parentId: contextMenu?.node?.id });
+    setModalData({ parentId: contextMenu?.node?.id ?? undefined });
     setModal("addArtifact");
     setContextMenu(null);
   };
 
   const validateUrl = (url: string) => {
     try {
-      // Accept empty string as invalid
       if (!url) return false;
       new URL(url);
       return true;
@@ -454,7 +525,6 @@ const TreeView: React.FC = () => {
   const validateVersion = (ver: string) => /^[0-9]+\.[0-9]+\.[0-9]+$/.test(ver);
 
   const submitAddArtifact = async () => {
-    // Validate input
     if (!artifactFields.title) {
       setError("Title is required.");
       return;
@@ -473,7 +543,7 @@ const TreeView: React.FC = () => {
     }
     try {
       await axios.post(
-        "http://localhost:5064/api/artifacts",
+        `${API_BASE_URL}/artifacts`,
         artifactFields,
         {
           headers: { Authorization: `Bearer ${auth.accessToken}` },
@@ -481,17 +551,16 @@ const TreeView: React.FC = () => {
       );
       fetchTree();
       setModal(null);
+      setTimeout(() => treeRootRef.current?.focus(), 0);
     } catch (err: any) {
       setError("Failed to add artifact. " + (err?.response?.data || ""));
     }
   };
 
-  // --- CATEGORY OPTION: Delete Category ---
   const handleDeleteCategory = async () => {
     setContextMenu(null);
     if (!contextMenu?.node) return;
 
-    // Check if empty: no subcategories, no artifacts
     const isEmpty =
       (!contextMenu.node.subcategories || contextMenu.node.subcategories.length === 0) &&
       (!contextMenu.node.artifacts || contextMenu.node.artifacts.length === 0);
@@ -505,7 +574,7 @@ const TreeView: React.FC = () => {
 
     try {
       await axios.delete(
-        `http://localhost:5064/api/categories/${contextMenu.node.id}`,
+        `${API_BASE_URL}/categories/${contextMenu.node.id}`,
         { headers: { Authorization: `Bearer ${auth.accessToken}` } }
       );
       fetchTree();
@@ -514,14 +583,13 @@ const TreeView: React.FC = () => {
     }
   };
 
-  // --- ARTIFACT OPTION: Delete Artifact ---
   const handleDeleteArtifact = async () => {
     setArtifactMenu(null);
     if (!artifactMenu?.artifact?.id) return;
     if (!window.confirm("Are you sure you want to delete this artifact?")) return;
     try {
       await axios.delete(
-        `http://localhost:5064/api/artifacts/${artifactMenu.artifact.id}`,
+        `${API_BASE_URL}/artifacts/${artifactMenu.artifact.id}`,
         { headers: { Authorization: `Bearer ${auth.accessToken}` } }
       );
       fetchTree();
@@ -530,7 +598,6 @@ const TreeView: React.FC = () => {
     }
   };
 
-  // --- ARTIFACT OPTION: Add Version ---
   const handleAddVersion = () => {
     setVersionFields({ ...DEFAULT_VERSION_FIELDS });
     setModalData({ artifactId: artifactMenu?.artifact?.id });
@@ -549,7 +616,7 @@ const TreeView: React.FC = () => {
     }
     try {
       await axios.post(
-        `http://localhost:5064/api/artifacts/${modalData?.artifactId}/versions`,
+        `${API_BASE_URL}/artifacts/${modalData?.artifactId}/versions`,
         {
           versionNumber: versionFields.versionNumber,
           changes: versionFields.changes,
@@ -558,29 +625,30 @@ const TreeView: React.FC = () => {
         { headers: { Authorization: `Bearer ${auth.accessToken}` } }
       );
       setModal(null);
+      setTimeout(() => treeRootRef.current?.focus(), 0);
     } catch (err: any) {
       setError("Failed to add version. " + (err?.response?.data || ""));
     }
   };
 
-  // --- ARTIFACT OPTION: Show Versions ---
-  const handleShowVersions = async () => {
+  const handleShowVersions = useCallback(async (artifactIdArg?: number) => {
     setModal("showVersions");
     setArtifactMenu(null);
     setArtifactVersions(null);
+    const artifactId = artifactIdArg ?? artifactMenu?.artifact?.id;
+    if (!artifactId) return;
     try {
       const res = await axios.get(
-        `http://localhost:5064/api/artifacts/${artifactMenu?.artifact?.id}/versions`,
+        `${API_BASE_URL}/artifacts/${artifactId}/versions`,
         { headers: { Authorization: `Bearer ${auth.accessToken}` } }
       );
       setArtifactVersions(res.data);
     } catch (err: any) {
       setError("Failed to fetch versions. " + (err?.response?.data || ""));
     }
-  };
+  }, [artifactMenu, auth.accessToken]);
 
-  // --- CATEGORY NODE TOGGLE (expand/collapse) ---
-  const handleToggle = async (id: number) => {
+  const handleToggle = useCallback(async (id: number) => {
     let nodeToToggle: Category | undefined;
     const findNode = (nodes: Category[]): void => {
       for (const n of nodes) {
@@ -593,13 +661,11 @@ const TreeView: React.FC = () => {
     };
     findNode(tree);
 
-    // What state will it become after toggle?
     const willExpand = nodeToToggle ? !nodeToToggle.isExpanded : true;
 
     if (auth.accessToken) {
       setCategoryDisplayPreference(id, willExpand, auth.accessToken).catch(console.error);
     } else {
-      // Optionally handle the case where the user is not authenticated
       console.error("User is not authenticated");
     }
 
@@ -609,212 +675,333 @@ const TreeView: React.FC = () => {
         isExpanded: willExpand,
       }))
     );
+  }, [tree, auth.accessToken]);
+
+  const handleNodeClick = (categoryId: number) => {
+    setSelectedCategoryId(categoryId);
+    setSelectedArtifactId(null);
+    treeRootRef.current?.focus();
+    setContextMenu(null);
+    setArtifactMenu(null);
   };
 
-  // --- Double-click to focus a category ---
+  const handleArtifactClick = (artifactId: number, categoryId: number) => {
+    setSelectedCategoryId(categoryId);
+    setSelectedArtifactId(artifactId);
+    treeRootRef.current?.focus();
+    setContextMenu(null);
+    setArtifactMenu(null);
+  };
+
   const handleDoubleClick = (node: Category) => {
     setFocusedCategoryId(node.id);
   };
 
-  // --- Breadcrumb handler ---
   const handleBreadcrumbClick = (categoryId: number | null) => {
     setFocusedCategoryId(categoryId);
   };
 
-  // --- Handle indentation input change ---
-  const handleIndentationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = parseInt(e.target.value, 10);
-    if (!isNaN(value) && value >= 0 && value <= 80) {
-      setIndentation(value);
+  const getFlatEntries = useCallback(() => {
+    let nodesToDisplay: Category[] = tree;
+    if (focusedCategoryId !== null) {
+      const focusedNode = findNodeById(tree, focusedCategoryId);
+      if (focusedNode) nodesToDisplay = [focusedNode];
     }
-  };
+    return flattenTree(nodesToDisplay);
+  }, [tree, focusedCategoryId]);
 
-  // --- RENDER ---
+  // Keyboard shortcut handler
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent | React.KeyboardEvent) => {
+      // If the modal is open and focus is in an input, ignore navigation/global keys except modal-specific keys
+      if (
+        modal &&
+        document.activeElement &&
+        ["INPUT", "TEXTAREA", "SELECT"].includes((document.activeElement as HTMLElement).tagName)
+      ) {
+        return;
+      }
 
-  // Compute which nodes to display and the breadcrumb path
-  let nodesToDisplay: Category[] = tree;
-  let breadcrumbPath: Category[] = [];
-  if (focusedCategoryId !== null) {
-    const focusedNode = findNodeById(tree, focusedCategoryId);
-    if (focusedNode) {
-      nodesToDisplay = [focusedNode];
-      breadcrumbPath = buildBreadcrumbPath(tree, focusedCategoryId);
-    }
-  }
+      // Undo (Ctrl+Z) or Escape should close the modal (and focus tree)
+      if (
+        (modal === "createCategory" || modal === "addArtifact") &&
+        (
+          ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "z") ||
+          e.key === "Escape"
+        )
+      ) {
+        e.preventDefault();
+        setModal(null);
+        setTimeout(() => treeRootRef.current?.focus(), 0);
+        return;
+      }
 
-  // --- Modals ---
-  const renderModal = () => {
-    // ... unchanged, same as before ...
-    if (modal === "createCategory") {
-      return (
-        <div className={styles.modalBackdrop}>
-          <div className={styles.modal}>
-            <h3>Create Category</h3>
-            <input
-              type="text"
-              placeholder="Category name"
-              value={categoryInput}
-              onChange={e => setCategoryInput(e.target.value)}
-            />
-            <div className={styles.modalButtons}>
-              <button onClick={submitCreateCategory}>
-                Create
-              </button>
-              <button onClick={() => setModal(null)}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      );
-    }
-    if (modal === "addArtifact") {
-      return (
-        <div className={styles.modalBackdrop}>
-          <div className={styles.modal}>
-            <h3>Add Software Dev Artifact</h3>
-            <input
-              type="text"
-              placeholder="Title"
-              value={artifactFields.title}
-              onChange={e => setArtifactFields({ ...artifactFields, title: e.target.value })}
-            />
-            <input
-              type="text"
-              placeholder="Description"
-              value={artifactFields.description}
-              onChange={e => setArtifactFields({ ...artifactFields, description: e.target.value })}
-            />
-            <input
-              type="url"
-              placeholder="URL"
-              value={artifactFields.url}
-              onChange={e => setArtifactFields({ ...artifactFields, url: e.target.value })}
-            />
-            <input
-              type="number"
-              placeholder="Type"
-              value={artifactFields.type}
-              onChange={e => setArtifactFields({ ...artifactFields, type: Number(e.target.value) })}
-            />
-            <input
-              type="text"
-              placeholder="Version (x.x.x)"
-              value={artifactFields.version}
-              onChange={e => setArtifactFields({ ...artifactFields, version: e.target.value })}
-            />
-            <input
-              type="text"
-              placeholder="Programming Language"
-              value={artifactFields.programmingLanguage}
-              onChange={e => setArtifactFields({ ...artifactFields, programmingLanguage: e.target.value })}
-            />
-            <input
-              type="text"
-              placeholder="Framework"
-              value={artifactFields.framework}
-              onChange={e => setArtifactFields({ ...artifactFields, framework: e.target.value })}
-            />
-            <input
-              type="text"
-              placeholder="License Type"
-              value={artifactFields.licenseType}
-              onChange={e => setArtifactFields({ ...artifactFields, licenseType: e.target.value })}
-            />
-            <div className={styles.modalButtons}>
-              <button onClick={submitAddArtifact}>Add</button>
-              <button onClick={() => setModal(null)}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      );
-    }
-    if (modal === "addVersion") {
-      return (
-        <div className={styles.modalBackdrop}>
-          <div className={styles.modal}>
-            <h3>Add Version</h3>
-            <input
-              type="text"
-              placeholder="Version (x.x.x)"
-              value={versionFields.versionNumber}
-              onChange={e => setVersionFields({ ...versionFields, versionNumber: e.target.value })}
-            />
-            <input
-              type="text"
-              placeholder="Changes"
-              value={versionFields.changes}
-              onChange={e => setVersionFields({ ...versionFields, changes: e.target.value })}
-            />
-            <input
-              type="url"
-              placeholder="Download URL"
-              value={versionFields.downloadUrl}
-              onChange={e => setVersionFields({ ...versionFields, downloadUrl: e.target.value })}
-            />
-            <div className={styles.modalButtons}>
-              <button onClick={submitAddVersion}>Add</button>
-              <button onClick={() => setModal(null)}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      );
-    }
-    if (modal === "showVersions") {
-      return (
-        <div className={styles.modalBackdrop}>
-          <div className={styles.modal}>
-            <h3>Artifact Versions</h3>
-            {artifactVersions === null ? (
-              <div>Loading...</div>
-            ) : (
-              <ul>
-                {artifactVersions.length === 0 && <li>No versions found.</li>}
-                {artifactVersions.map(ver => (
-                  <li key={ver.id}>
-                    <b>{ver.versionNumber}</b> - {ver.changes} <br />
-                    <a href={ver.downloadUrl} target="_blank" rel="noopener noreferrer">
-                      Download
-                    </a>
-                    <br />
-                    <span>
-                      Uploaded: {new Date(ver.uploadDate).toLocaleString()}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <div className={styles.modalButtons}>
-              <button onClick={() => setModal(null)}>Close</button>
-            </div>
-          </div>
-        </div>
-      );
-    }
-    // Error modal
-    if (error) {
-      return (
-        <div className={styles.modalBackdrop}>
-          <div className={styles.modal}>
-            <div style={{ color: "red" }}>{error}</div>
-            <div className={styles.modalButtons}>
-              <button
-                onClick={() => {
-                  setError(null);
-                  setModal(null);
-                }}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      );
-    }
-    return null;
-  };
+      // Redo for createCategory/addArtifact modal
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key.toLowerCase() === "y")) {
+        if (modalRedoStack.length > 0) {
+          e.preventDefault();
+          const last = modalRedoStack[modalRedoStack.length - 1];
+          setModalUndoStack((stack) => [...stack, last]);
+          setModalRedoStack((stack) => stack.slice(0, -1));
+          if (last.modal === "createCategory") {
+            setCategoryInput(last.categoryInput ?? "");
+          }
+          if (last.modal === "addArtifact") {
+            setArtifactFields(last.artifactFields ?? { ...DEFAULT_ARTIFACT_FIELDS });
+          }
+          setModalData(last.modalData);
+          setModal(last.modal);
+        }
+        return;
+      }
 
-  // --- Breadcrumb bar ---
+      const flatEntries = getFlatEntries();
+      const selectedIndex = flatEntries.findIndex(
+        (entry) =>
+          (entry.type === "category" && entry.id === selectedCategoryId && !selectedArtifactId) ||
+          (entry.type === "artifact" && entry.id === selectedArtifactId)
+      );
+
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        if (flatEntries.length === 0) return;
+        const next = selectedIndex < flatEntries.length - 1 ? selectedIndex + 1 : 0;
+        const entry = flatEntries[next];
+        if (entry.type === "category") {
+          setSelectedCategoryId(entry.id);
+          setSelectedArtifactId(null);
+        } else {
+          setSelectedCategoryId(entry.parentCategoryId!);
+          setSelectedArtifactId(entry.id);
+        }
+        return;
+      }
+
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        if (flatEntries.length === 0) return;
+        const prev = selectedIndex > 0 ? selectedIndex - 1 : flatEntries.length - 1;
+        const entry = flatEntries[prev];
+        if (entry.type === "category") {
+          setSelectedCategoryId(entry.id);
+          setSelectedArtifactId(null);
+        } else {
+          setSelectedCategoryId(entry.parentCategoryId!);
+          setSelectedArtifactId(entry.id);
+        }
+        return;
+      }
+
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        if (selectedArtifactId) return;
+        const entry = flatEntries[selectedIndex];
+        if (!entry || entry.type !== "category") return;
+        const cat = entry.category;
+        if (!cat.isExpanded && (cat.subcategories.length > 0 || (cat.artifacts && cat.artifacts.length > 0))) {
+          handleToggle(cat.id);
+        } else if (cat.isExpanded && cat.subcategories.length > 0) {
+          setSelectedCategoryId(cat.subcategories[0].id);
+          setSelectedArtifactId(null);
+        } else if (cat.isExpanded && (!cat.subcategories.length) && (cat.artifacts && cat.artifacts.length > 0)) {
+          setSelectedCategoryId(cat.id);
+          setSelectedArtifactId(cat.artifacts[0].id);
+        }
+        return;
+      }
+
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        if (selectedArtifactId) {
+          setSelectedArtifactId(null);
+          return;
+        }
+        const entry = flatEntries[selectedIndex];
+        if (!entry || entry.type !== "category") return;
+        const cat = entry.category;
+        if (cat.isExpanded && (cat.subcategories.length > 0 || (cat.artifacts && cat.artifacts.length > 0))) {
+          handleToggle(cat.id);
+        } else if (cat.parentCategoryId !== null) {
+          setSelectedCategoryId(cat.parentCategoryId!);
+          setSelectedArtifactId(null);
+        }
+        return;
+      }
+
+      if (e.key === "Enter" || e.key === " ") {
+        if (modal === "createCategory") {
+          e.preventDefault();
+          submitCreateCategory();
+          return;
+        }
+        if (modal === "addArtifact") {
+          e.preventDefault();
+          submitAddArtifact();
+          return;
+        }
+        if (selectedCategoryId && !selectedArtifactId && !modal) {
+          e.preventDefault();
+          setFocusedCategoryId(selectedCategoryId);
+          return;
+        }
+      }
+
+      if (e.key === "Escape") {
+        if (modal) {
+          setModal(null);
+          setError(null);
+          setTimeout(() => treeRootRef.current?.focus(), 0);
+          return;
+        }
+        if (focusedCategoryId !== null) {
+          const path = buildBreadcrumbPath(tree, focusedCategoryId);
+          if (path.length > 1) {
+            setFocusedCategoryId(path[path.length - 2].id);
+          } else {
+            setFocusedCategoryId(null);
+          }
+        }
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "r") {
+        e.preventDefault();
+        setFocusedCategoryId(null);
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        setModalUndoStack((stack) => [
+          ...stack,
+          {
+            modal: "createCategory",
+            modalData: { parentId: selectedCategoryId ?? undefined },
+            categoryInput: "",
+          },
+        ]);
+        setModalRedoStack([]);
+        setCategoryInput("");
+        setModalData({ parentId: selectedCategoryId ?? undefined });
+        setModal("createCategory");
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        setModalUndoStack((stack) => [
+          ...stack,
+          {
+            modal: "addArtifact",
+            modalData: { parentId: selectedCategoryId ?? undefined },
+            artifactFields: { ...DEFAULT_ARTIFACT_FIELDS, categoryId: selectedCategoryId ?? undefined },
+          },
+        ]);
+        setModalRedoStack([]);
+        setArtifactFields({
+          ...DEFAULT_ARTIFACT_FIELDS,
+          categoryId: selectedCategoryId ?? undefined,
+        });
+        setModalData({ parentId: selectedCategoryId ?? undefined });
+        setModal("addArtifact");
+        return;
+      }
+
+      if (e.key.toLowerCase() === "v" && selectedArtifactId) {
+        e.preventDefault();
+        handleShowVersions(selectedArtifactId);
+        return;
+      }
+
+      if ((e.key === "Delete" || e.key === "Backspace")) {
+        e.preventDefault();
+        if (selectedArtifactId && selectedCategoryId) {
+          if (
+            window.confirm("Are you sure you want to delete this artifact?")
+          ) {
+            axios
+              .delete(
+                `${API_BASE_URL}/artifacts/${selectedArtifactId}`,
+                { headers: { Authorization: `Bearer ${auth.accessToken}` } }
+              )
+              .then(fetchTree)
+              .catch((err) =>
+                setError(
+                  "Failed to delete artifact. " + (err?.response?.data || "")
+                )
+              );
+          }
+        } else if (selectedCategoryId) {
+          const node = findNodeById(tree, selectedCategoryId);
+          const isEmpty =
+            (node?.subcategories?.length ?? 0) === 0 &&
+            (node?.artifacts?.length ?? 0) === 0;
+          if (!isEmpty) {
+            setError("Category is not empty and cannot be deleted.");
+            return;
+          }
+          if (
+            window.confirm("Are you sure you want to delete this category?")
+          ) {
+            axios
+              .delete(
+                `${API_BASE_URL}/categories/${selectedCategoryId}`,
+                { headers: { Authorization: `Bearer ${auth.accessToken}` } }
+              )
+              .then(fetchTree)
+              .catch((err) =>
+                setError(
+                  "Failed to delete category. " + (err?.response?.data || "")
+                )
+              );
+          }
+        }
+        return;
+      }
+    },
+    [
+      modal,
+      modalRedoStack,
+      modalUndoStack,
+      artifactFields,
+      categoryInput,
+      selectedCategoryId,
+      selectedArtifactId,
+      tree,
+      getFlatEntries,
+      handleShowVersions,
+      handleToggle,
+      submitAddArtifact,
+      submitCreateCategory,
+      setModal,
+      setModalUndoStack,
+      setModalRedoStack,
+      setModalData,
+      setArtifactFields,
+      setCategoryInput,
+      setFocusedCategoryId,
+      setSelectedCategoryId,
+      setSelectedArtifactId,
+      setError,
+      fetchTree,
+      treeRootRef,
+      auth.accessToken,
+    ]
+  );
+
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      handleKeyDown(e);
+    };
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleGlobalKeyDown);
+    };
+  }, [handleKeyDown]);
+
   const renderBreadcrumb = () => {
     if (focusedCategoryId === null) return null;
+    const breadcrumbPath = buildBreadcrumbPath(tree, focusedCategoryId);
     return (
       <div className={styles.breadcrumbBar}>
         <span
@@ -839,36 +1026,302 @@ const TreeView: React.FC = () => {
     );
   };
 
+  const renderIndentationInput = () => (
+    <div className={styles.indentationControlWrapper}>
+      <div className={styles.indentationControl}>
+        <label htmlFor="indentationInput">
+          Indentation:
+          <input
+            id="indentationInput"
+            type="number"
+            min={0}
+            max={80}
+            step={1}
+            value={indentation}
+            onChange={e => {
+              const value = parseInt(e.target.value, 10);
+              if (!isNaN(value) && value >= 0 && value <= 80) setIndentation(value);
+            }}
+            className={styles.indentationInput}
+            style={{ marginLeft: 8, width: 60 }}
+          />{" "}
+          <span style={{ fontSize: "90%", color: "#888" }}>px/level</span>
+        </label>
+      </div>
+    </div>
+  );
+
+  let nodesToDisplay: Category[] = tree;
+  if (focusedCategoryId !== null) {
+    const focusedNode = findNodeById(tree, focusedCategoryId);
+    if (focusedNode) {
+      nodesToDisplay = [focusedNode];
+    }
+  }
+
+  const renderModal = () => {
+    if (modal === "createCategory") {
+      return (
+        <div className={styles.modalBackdrop}>
+          <form
+            className={`${styles.modal} ${styles.addMenuModal} ${styles.addMenuModalSmall}`}
+            onSubmit={e => {
+              e.preventDefault();
+              submitCreateCategory();
+            }}
+            tabIndex={-1}
+            onKeyDown={event => {
+              if (
+                ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === "z") ||
+                event.key === "Escape"
+              ) {
+                event.preventDefault();
+                setModal(null);
+                setTimeout(() => treeRootRef.current?.focus(), 0);
+              }
+            }}
+          >
+            <h3 className={styles.modalTitle}>Create Category</h3>
+            <input
+              type="text"
+              placeholder="Category name"
+              value={categoryInput}
+              ref={createCategoryFirstInputRef}
+              onChange={e => setCategoryInput(e.target.value)}
+              className={styles.modalInput}
+              autoFocus
+            />
+            <div className={styles.modalButtons}>
+              <button type="submit" className={styles.modalButton}>
+                Create
+              </button>
+              <button type="button" className={styles.modalButton} onClick={() => {
+                setModal(null);
+                setTimeout(() => treeRootRef.current?.focus(), 0);
+              }}>Cancel</button>
+            </div>
+          </form>
+        </div>
+      );
+    }
+    if (modal === "addArtifact") {
+      return (
+        <div className={styles.modalBackdrop}>
+          <form
+            className={`${styles.modal} ${styles.addMenuModal} ${styles.addMenuModalSmall}`}
+            onSubmit={e => {
+              e.preventDefault();
+              submitAddArtifact();
+            }}
+            tabIndex={-1}
+            onKeyDown={event => {
+              if (
+                ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === "z") ||
+                event.key === "Escape"
+              ) {
+                event.preventDefault();
+                setModal(null);
+                setTimeout(() => treeRootRef.current?.focus(), 0);
+              }
+            }}
+          >
+            <h3 className={styles.modalTitle}>Add Software Dev Artifact</h3>
+            <input
+              type="text"
+              placeholder="Title"
+              value={artifactFields.title}
+              ref={addArtifactFirstInputRef}
+              onChange={e => setArtifactFields({ ...artifactFields, title: e.target.value })}
+              className={styles.modalInput}
+              autoFocus
+            />
+            <input
+              type="text"
+              placeholder="Description"
+              value={artifactFields.description}
+              onChange={e => setArtifactFields({ ...artifactFields, description: e.target.value })}
+              className={styles.modalInput}
+            />
+            <input
+              type="url"
+              placeholder="URL"
+              value={artifactFields.url}
+              onChange={e => setArtifactFields({ ...artifactFields, url: e.target.value })}
+              className={styles.modalInput}
+            />
+            <input
+              type="number"
+              placeholder="Type"
+              value={artifactFields.type}
+              onChange={e => setArtifactFields({ ...artifactFields, type: Number(e.target.value) })}
+              className={styles.modalInput}
+            />
+            <input
+              type="text"
+              placeholder="Version (x.x.x)"
+              value={artifactFields.version}
+              onChange={e => setArtifactFields({ ...artifactFields, version: e.target.value })}
+              className={styles.modalInput}
+            />
+            <input
+              type="text"
+              placeholder="Programming Language"
+              value={artifactFields.programmingLanguage}
+              onChange={e => setArtifactFields({ ...artifactFields, programmingLanguage: e.target.value })}
+              className={styles.modalInput}
+            />
+            <input
+              type="text"
+              placeholder="Framework"
+              value={artifactFields.framework}
+              onChange={e => setArtifactFields({ ...artifactFields, framework: e.target.value })}
+              className={styles.modalInput}
+            />
+            <input
+              type="text"
+              placeholder="License Type"
+              value={artifactFields.licenseType}
+              onChange={e => setArtifactFields({ ...artifactFields, licenseType: e.target.value })}
+              className={styles.modalInput}
+            />
+            <div className={styles.modalButtons}>
+              <button type="submit" className={styles.modalButton}>
+                Add
+              </button>
+              <button type="button" className={styles.modalButton} onClick={() => {
+                setModal(null);
+                setTimeout(() => treeRootRef.current?.focus(), 0);
+              }}>Cancel</button>
+            </div>
+          </form>
+        </div>
+      );
+    }
+    if (modal === "addVersion") {
+      return (
+        <div className={styles.modalBackdrop}>
+          <form
+            className={styles.modal}
+            onSubmit={e => {
+              e.preventDefault();
+              submitAddVersion();
+            }}
+            tabIndex={-1}
+            onKeyDown={event => {
+              if (
+                ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === "z") ||
+                event.key === "Escape"
+              ) {
+                event.preventDefault();
+                setModal(null);
+                setTimeout(() => treeRootRef.current?.focus(), 0);
+              }
+            }}
+          >
+            <h3 className={styles.modalTitle}>Add Version</h3>
+            <input
+              type="text"
+              placeholder="Version (x.x.x)"
+              value={versionFields.versionNumber}
+              onChange={e => setVersionFields({ ...versionFields, versionNumber: e.target.value })}
+              className={styles.modalInput}
+              autoFocus
+            />
+            <input
+              type="text"
+              placeholder="Changes"
+              value={versionFields.changes}
+              onChange={e => setVersionFields({ ...versionFields, changes: e.target.value })}
+              className={styles.modalInput}
+            />
+            <input
+              type="url"
+              placeholder="Download URL"
+              value={versionFields.downloadUrl}
+              onChange={e => setVersionFields({ ...versionFields, downloadUrl: e.target.value })}
+              className={styles.modalInput}
+            />
+            <div className={styles.modalButtons}>
+              <button type="submit" className={styles.modalButton}>
+                Add
+              </button>
+              <button type="button" className={styles.modalButton} onClick={() => {
+                setModal(null);
+                setTimeout(() => treeRootRef.current?.focus(), 0);
+              }}>Cancel</button>
+            </div>
+          </form>
+        </div>
+      );
+    }
+    if (modal === "showVersions") {
+      return (
+        <div className={styles.modalBackdrop}>
+          <div className={styles.modal}>
+            <h3 className={styles.modalTitle}>Artifact Versions</h3>
+            {artifactVersions === null ? (
+              <div>Loading...</div>
+            ) : (
+              <ul>
+                {artifactVersions.length === 0 && <li>No versions found.</li>}
+                {artifactVersions.map(ver => (
+                  <li key={ver.id}>
+                    <b>{ver.versionNumber}</b> - {ver.changes} <br />
+                    <a href={ver.downloadUrl} target="_blank" rel="noopener noreferrer">
+                      Download
+                    </a>
+                    <br />
+                    <span>
+                      Uploaded: {new Date(ver.uploadDate).toLocaleString()}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className={styles.modalButtons}>
+              <button className={styles.modalButton} onClick={() => {
+                setModal(null);
+                setTimeout(() => treeRootRef.current?.focus(), 0);
+              }}>Close</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    if (error) {
+      return (
+        <div className={styles.modalBackdrop}>
+          <div className={styles.modal}>
+            <div style={{ color: "red" }}>{error}</div>
+            <div className={styles.modalButtons}>
+              <button
+                className={styles.modalButton}
+                onClick={() => {
+                  setError(null);
+                  setModal(null);
+                  setTimeout(() => treeRootRef.current?.focus(), 0);
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
+
   if (loading) return <div>Loading...</div>;
 
-  // --- Main render ---
   return (
-    <div className={styles.treeWrapper} tabIndex={-1}
-      onClick={() => {
-        setContextMenu(null);
-        setArtifactMenu(null);
-      }}
+    <div
+      className={styles.treeWrapper}
+      tabIndex={0}
+      ref={treeRootRef}
+      style={{ outline: "none" }}
     >
-      {/* Indentation input in upright corner */}
-      <div className={styles.indentationControlWrapper}>
-        <div className={styles.indentationControl}>
-          <label htmlFor="indentationInput">
-            Indentation:
-            <input
-              id="indentationInput"
-              type="number"
-              min={0}
-              max={80}
-              step={1}
-              value={indentation}
-              onChange={handleIndentationChange}
-              className={styles.indentationInput}
-              style={{ marginLeft: 8, width: 60 }}
-            />{" "}
-            <span style={{ fontSize: "90%", color: "#888" }}>px/level</span>
-          </label>
-        </div>
-      </div>
+      {renderIndentationInput()}
       {renderBreadcrumb()}
       {nodesToDisplay.map((node) => (
         <TreeNode
@@ -886,10 +1339,13 @@ const TreeView: React.FC = () => {
           dragOver={dragOver}
           onArtifactContextMenu={handleArtifactContextMenu}
           onDoubleClick={handleDoubleClick}
+          selectedCategoryId={selectedCategoryId}
+          selectedArtifactId={selectedArtifactId}
+          onNodeClick={handleNodeClick}
+          onArtifactClick={handleArtifactClick}
         />
       ))}
 
-      {/* --- Category Context Menu --- */}
       {contextMenu && contextMenu.node && (
         <div
           className={styles.contextMenu}
@@ -910,7 +1366,6 @@ const TreeView: React.FC = () => {
         </div>
       )}
 
-      {/* --- Artifact Context Menu --- */}
       {artifactMenu && artifactMenu.artifact && (
         <div
           className={styles.contextMenu}
@@ -922,14 +1377,13 @@ const TreeView: React.FC = () => {
           <div className={styles.contextMenuItem} onClick={handleAddVersion}>
             Add version
           </div>
-          <div className={styles.contextMenuItem} onClick={handleShowVersions}>
+          <div className={styles.contextMenuItem} onClick={() => handleShowVersions(artifactMenu.artifact?.id)}>
             Display all versions
           </div>
         </div>
       )}
 
-      {/* --- Modals for all actions/errors --- */}
-      {(modal || error) && renderModal()}
+      {(modal || error) && createPortal(renderModal(), document.body)}
     </div>
   );
 };
