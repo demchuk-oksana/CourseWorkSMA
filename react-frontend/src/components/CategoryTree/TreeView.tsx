@@ -95,12 +95,12 @@ const TreeView: React.FC = () => {
   }, []);
 
   const fetchTree = () => {
-    setLoading(true);
-     getCategoryTree(auth.accessToken ?? undefined)
-      .then(setTree)
-      .catch((err) => setError("Failed to load category tree"))
-      .finally(() => setLoading(false));
-  };
+  setLoading(true);
+  getCategoryTree(auth.accessToken ?? undefined)
+    .then(setTree)
+    .catch((err) => setError("Failed to load category tree"))
+    .finally(() => setLoading(false));
+};
 
   // Recursively update a node by id
   const updateNodeById = (
@@ -563,38 +563,12 @@ const TreeView: React.FC = () => {
     }
 
 
-    if (
-      nodeToToggle &&
-      !nodeToToggle.isExpanded &&
-      nodeToToggle.artifacts === undefined
-    ) {
-      try {
-        const artifacts = await getArtifactsByCategory(id);
-        setTree((prev) =>
-          updateNodeById(prev, id, (node) => ({
-            ...node,
-            isExpanded: true,
-            artifacts: artifacts,
-          }))
-        );
-      } catch (err) {
-        setTree((prev) =>
-          updateNodeById(prev, id, (node) => ({
-            ...node,
-            isExpanded: true,
-            artifacts: [],
-          }))
-        );
-      }
-    } else {
-      setTree((prev) =>
-        updateNodeById(prev, id, (node) => ({
-          ...node,
-          isExpanded: willExpand,
-        }))
-      );
-    }
-  };
+    setTree((prev) =>
+  updateNodeById(prev, id, (node) => ({
+    ...node,
+    isExpanded: willExpand,
+  }))
+);}
 
 
   // --- RENDER ---

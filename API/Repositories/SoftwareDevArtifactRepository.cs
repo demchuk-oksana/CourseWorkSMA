@@ -14,13 +14,13 @@ public class SoftwareDevArtifactRepository : Repository<SoftwareDevArtifact>, IS
         _context = context;
     }
 
-    public new SoftwareDevArtifact GetById(int id)
-    {
-        return _context.Artifacts
-            .Where(a => a.Id == id)
-            .Include(a => a.Versions)
-            .First();
-    }
+    public new SoftwareDevArtifact? GetById(int id)
+{
+    return _context.Artifacts
+        .Where(a => a.Id == id)
+        .Include(a => a.Versions)
+        .FirstOrDefault();
+}
 
     public IEnumerable<SoftwareDevArtifact> GetByCategory(int categoryId)
     {
