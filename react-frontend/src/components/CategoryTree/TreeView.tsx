@@ -64,6 +64,8 @@ const DEFAULT_VERSION_FIELDS = {
   downloadUrl: "",
 };
 
+const DEFAULT_INDENTATION = 24;
+
 const TreeView: React.FC = () => {
   const [tree, setTree] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -91,6 +93,9 @@ const TreeView: React.FC = () => {
 
   // --- Focused category state for "focused mode" and breadcrumb ---
   const [focusedCategoryId, setFocusedCategoryId] = useState<number | null>(null);
+
+  // --- Indentation state ---
+  const [indentation, setIndentation] = useState<number>(DEFAULT_INDENTATION);
 
   useEffect(() => {
     fetchTree();
@@ -616,6 +621,14 @@ const TreeView: React.FC = () => {
     setFocusedCategoryId(categoryId);
   };
 
+  // --- Handle indentation input change ---
+  const handleIndentationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseInt(e.target.value, 10);
+    if (!isNaN(value) && value >= 0 && value <= 80) {
+      setIndentation(value);
+    }
+  };
+
   // --- RENDER ---
 
   // Compute which nodes to display and the breadcrumb path
@@ -836,12 +849,33 @@ const TreeView: React.FC = () => {
         setArtifactMenu(null);
       }}
     >
+      {/* Indentation input in upright corner */}
+      <div className={styles.indentationControlWrapper}>
+        <div className={styles.indentationControl}>
+          <label htmlFor="indentationInput">
+            Indentation:
+            <input
+              id="indentationInput"
+              type="number"
+              min={0}
+              max={80}
+              step={1}
+              value={indentation}
+              onChange={handleIndentationChange}
+              className={styles.indentationInput}
+              style={{ marginLeft: 8, width: 60 }}
+            />{" "}
+            <span style={{ fontSize: "90%", color: "#888" }}>px/level</span>
+          </label>
+        </div>
+      </div>
       {renderBreadcrumb()}
       {nodesToDisplay.map((node) => (
         <TreeNode
           key={node.id}
           node={node}
           level={0}
+          indentation={indentation}
           onToggle={handleToggle}
           onContextMenu={handleContextMenu}
           onDragStart={handleDragStart}

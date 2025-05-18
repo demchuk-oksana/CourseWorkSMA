@@ -7,6 +7,7 @@ import clsx from "clsx";
 interface TreeNodeProps {
   node: Category;
   level: number;
+  indentation?: number;
   onToggle: (id: number) => void;
   onContextMenu: (event: React.MouseEvent, node: Category) => void;
   onDragStart: (event: React.DragEvent, node: Category) => void;
@@ -30,6 +31,7 @@ interface TreeNodeProps {
 const TreeNode: React.FC<TreeNodeProps> = ({
   node,
   level,
+  indentation = 24,
   onToggle,
   onContextMenu,
   onDragStart,
@@ -42,7 +44,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   onDoubleClick,
 }) => {
   const isDragging = draggingNodeId === node.id;
-  const indent = { marginLeft: `${level * 24}px` };
+  const indent = { marginLeft: `${level * indentation}px` };
   const ref = useRef<HTMLDivElement>(null);
 
   // Drag-over styling
@@ -102,6 +104,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
                 key={sub.id}
                 node={sub}
                 level={level + 1}
+                indentation={indentation}
                 onToggle={onToggle}
                 onContextMenu={onContextMenu}
                 onDragStart={onDragStart}
@@ -119,7 +122,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
               <div
                 key={artifact.id}
                 className={styles.artifactRow}
-                style={{ marginLeft: (level + 1) * 24 }}
+                style={{ marginLeft: ((level + 1) * indentation) }}
                 onContextMenu={onArtifactContextMenu
                   ? (e) => {
                       e.stopPropagation();
