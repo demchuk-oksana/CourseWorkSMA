@@ -24,6 +24,7 @@ interface TreeNodeProps {
   draggingNodeId: number | null;
   dragOver?: { nodeId: number; position: "above" | "below" | "inside" | null } | null;
   onArtifactContextMenu?: (event: React.MouseEvent, artifact: Artifact, categoryId: number) => void;
+  onDoubleClick?: (node: Category) => void;
 }
 
 const TreeNode: React.FC<TreeNodeProps> = ({
@@ -38,6 +39,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   draggingNodeId,
   dragOver,
   onArtifactContextMenu,
+  onDoubleClick,
 }) => {
   const isDragging = draggingNodeId === node.id;
   const indent = { marginLeft: `${level * 24}px` };
@@ -55,11 +57,8 @@ const TreeNode: React.FC<TreeNodeProps> = ({
     }
   }
 
-  // Is expandable if there are subcategories, or if artifacts could be loaded (artifacts undefined), or if loaded and there are artifacts
-  const isExpandable =
-    (node.subcategories && node.subcategories.length > 0) ||
-    node.artifacts === undefined ||
-    (node.artifacts && node.artifacts.length > 0);
+  // Always show expand/collapse icon
+  const isExpandable = true;
 
   return (
     <div>
@@ -83,6 +82,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
             if (ref.current) onDrop(e, node, ref.current);
           }
         }
+        onDoubleClick={() => onDoubleClick && onDoubleClick(node)}
       >
         {isExpandable ? (
           <span className={styles.expandIcon} onClick={() => onToggle(node.id)}>
@@ -111,6 +111,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
                 draggingNodeId={draggingNodeId}
                 dragOver={dragOver}
                 onArtifactContextMenu={onArtifactContextMenu}
+                onDoubleClick={onDoubleClick}
               />
             ))}
           {node.artifacts &&
