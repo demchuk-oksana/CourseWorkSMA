@@ -9,6 +9,7 @@ public interface ICategoryRepository : IRepository<Category>
     void Rearrange(int categoryId, int? newParentId, int newPosition = 0);
     bool IsCategoryEmpty(int categoryId);
     void SetDisplayPreference(int categoryId, int userId, bool isExpanded);
-    bool? GetDisplayPreference(int categoryId, int userId);
     void ChangeNestingLevel(int categoryId, int? newParentId);
+    Dictionary<int, bool> GetDisplayPreference(int userId);
+    
 }

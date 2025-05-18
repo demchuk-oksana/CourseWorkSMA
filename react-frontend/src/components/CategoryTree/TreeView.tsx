@@ -2,10 +2,11 @@ import React, { useEffect, useState } from "react";
 import { Category } from "../../types/category";
 import TreeNode from "./TreeNode";
 import styles from "./TreeView.module.css";
-import { getCategoryTree } from "../../api/categoryApi";
 import { getArtifactsByCategory } from "../../api/artifactApi";
 import axios from "axios";
 import { useAuth } from "../../hooks/useAuth";
+import { getCategoryTree, setCategoryDisplayPreference } from "../../api/categoryApi";
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5064/api';
 
 // --- Types for category and artifact context menu state ---
 interface ContextMenuState {
@@ -95,7 +96,7 @@ const TreeView: React.FC = () => {
 
   const fetchTree = () => {
     setLoading(true);
-    getCategoryTree()
+     getCategoryTree(auth.accessToken ?? undefined)
       .then(setTree)
       .catch((err) => setError("Failed to load category tree"))
       .finally(() => setLoading(false));
@@ -537,7 +538,7 @@ const TreeView: React.FC = () => {
     }
   };
 
-  // --- CATEGORY NODE TOGGLE (expand/collapse) ---
+    // --- CATEGORY NODE TOGGLE (expand/collapse) ---
   const handleToggle = async (id: number) => {
     let nodeToToggle: Category | undefined;
     const findNode = (nodes: Category[]): void => {
@@ -550,6 +551,17 @@ const TreeView: React.FC = () => {
       }
     };
     findNode(tree);
+
+    // What state will it become after toggle?
+    const willExpand = nodeToToggle ? !nodeToToggle.isExpanded : true;
+
+    if (auth.accessToken) {
+    setCategoryDisplayPreference(id, willExpand, auth.accessToken).catch(console.error);
+    } else {
+    // Optionally handle the case where the user is not authenticated
+    console.error("User is not authenticated");
+    }
+
 
     if (
       nodeToToggle &&
@@ -578,11 +590,12 @@ const TreeView: React.FC = () => {
       setTree((prev) =>
         updateNodeById(prev, id, (node) => ({
           ...node,
-          isExpanded: !node.isExpanded,
+          isExpanded: willExpand,
         }))
       );
     }
   };
+
 
   // --- RENDER ---
   if (loading) return <div>Loading...</div>;

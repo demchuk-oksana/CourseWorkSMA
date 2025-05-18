@@ -14,46 +14,39 @@ public class CategoryRepository : Repository<Category>, ICategoryRepository
         _context = context;
     }
 
-     public void ChangeNestingLevel(int categoryId, int? newParentId)
+    public void ChangeNestingLevel(int categoryId, int? newParentId)
     {
         var category = _context.Categories.FirstOrDefault(c => c.Id == categoryId);
         if (category == null) throw new Exception("Category not found");
 
         category.ParentCategoryId = newParentId;
-
-        // Update the category in the database
         _context.Categories.Update(category);
         _context.SaveChanges();
     }
 
-   public IEnumerable<Category> GetRootCategories()
-{
-    // Load all categories from the DB (single query)
-    var allCategories = _context.Categories
-        .AsNoTracking()
-        .ToList();
-
-    // Create a dictionary for quick lookup
-    var categoryDict = allCategories.ToDictionary(c => c.Id);
-
-    // Reset Subcategories to avoid duplication
-    foreach (var category in allCategories)
+    public IEnumerable<Category> GetRootCategories()
     {
-        category.Subcategories = new List<Category>();
-    }
+        var allCategories = _context.Categories
+            .AsNoTracking()
+            .ToList();
 
-    // Assign each category to its parent
-    foreach (var category in allCategories)
-    {
-        if (category.ParentCategoryId.HasValue && categoryDict.TryGetValue(category.ParentCategoryId.Value, out var parent))
+        var categoryDict = allCategories.ToDictionary(c => c.Id);
+
+        foreach (var category in allCategories)
         {
-            parent.Subcategories.Add(category);
+            category.Subcategories = new List<Category>();
         }
-    }
 
-    // Only return root categories (no parent)
-    return allCategories.Where(c => c.ParentCategoryId == null).ToList();
-}
+        foreach (var category in allCategories)
+        {
+            if (category.ParentCategoryId.HasValue && categoryDict.TryGetValue(category.ParentCategoryId.Value, out var parent))
+            {
+                parent.Subcategories.Add(category);
+            }
+        }
+
+        return allCategories.Where(c => c.ParentCategoryId == null).ToList();
+    }
 
     public IEnumerable<Category> GetSubcategories(int parentId)
     {
@@ -63,32 +56,31 @@ public class CategoryRepository : Repository<Category>, ICategoryRepository
             .ToList();
     }
 
-   public void Rearrange(int categoryId, int? newParentId, int newPosition = 0)
-{
-    var category = _context.Categories.FirstOrDefault(c => c.Id == categoryId);
-    if (category == null) throw new Exception("Category not found");
-
-    if (category.ParentCategoryId != newParentId)
+    public void Rearrange(int categoryId, int? newParentId, int newPosition = 0)
     {
-        category.ParentCategoryId = newParentId;
+        var category = _context.Categories.FirstOrDefault(c => c.Id == categoryId);
+        if (category == null) throw new Exception("Category not found");
+
+        if (category.ParentCategoryId != newParentId)
+        {
+            category.ParentCategoryId = newParentId;
+        }
+
+        var siblings = _context.Categories
+            .Where(c => c.ParentCategoryId == newParentId && c.Id != categoryId)
+            .OrderBy(c => c.OrderIndex)
+            .ToList();
+
+        siblings.Insert(newPosition, category);
+
+        for (int i = 0; i < siblings.Count; i++)
+        {
+            siblings[i].OrderIndex = i;
+            _context.Categories.Update(siblings[i]);
+        }
+
+        _context.SaveChanges();
     }
-
-    // Reorder siblings under new parent
-    var siblings = _context.Categories
-        .Where(c => c.ParentCategoryId == newParentId && c.Id != categoryId)
-        .OrderBy(c => c.OrderIndex)
-        .ToList();
-
-    siblings.Insert(newPosition, category);
-
-    for (int i = 0; i < siblings.Count; i++)
-    {
-        siblings[i].OrderIndex = i;
-        _context.Categories.Update(siblings[i]);
-    }
-
-    _context.SaveChanges();
-}
 
     public bool IsCategoryEmpty(int categoryId)
     {
@@ -118,15 +110,15 @@ public class CategoryRepository : Repository<Category>, ICategoryRepository
                 IsExpanded = isExpanded
             });
         }
+        Console.WriteLine($"Saving preference: userId={userId}, categoryId={categoryId}, isExpanded={isExpanded}");
         _context.SaveChanges();
     }
 
-    public bool? GetDisplayPreference(int categoryId, int userId)
+    // Returns a dictionary of categoryId -> isExpanded for the user
+    public Dictionary<int, bool> GetDisplayPreference(int userId)
     {
-        var pref = _context.CategoryPreferences
-            .FirstOrDefault(p => p.CategoryId == categoryId && p.UserId == userId);
-
-        return pref?.IsExpanded;
+        return _context.CategoryPreferences
+            .Where(p => p.UserId == userId)
+            .ToDictionary(p => p.CategoryId, p => p.IsExpanded);
     }
-
 }

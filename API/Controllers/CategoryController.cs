@@ -119,7 +119,8 @@ public class CategoryController : ControllerBase
     [HttpPost("{id}/display")]
     public IActionResult SetDisplayPreference(int id, [FromBody] bool isExpanded)
     {
-        var username = User.Identity?.Name;
+       var username = User.Identity?.Name;
+        Console.WriteLine($"SetDisplayPreference called by user: {username}");  
         var user = _uow.UserRepository.GetByUsername(username!);
         if (user == null) return Unauthorized();
 
