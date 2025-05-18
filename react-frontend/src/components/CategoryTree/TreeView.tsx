@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import { Category } from "../../types/category";
 import TreeNode from "./TreeNode";
 import styles from "./TreeView.module.css";
-import { getArtifactsByCategory } from "../../api/artifactApi";
 import axios from "axios";
 import { useAuth } from "../../hooks/useAuth";
 import { getCategoryTree, setCategoryDisplayPreference } from "../../api/categoryApi";
@@ -90,17 +89,20 @@ const TreeView: React.FC = () => {
 
   const { auth } = useAuth();
 
+  // --- Focused category state for "focused mode" and breadcrumb ---
+  const [focusedCategoryId, setFocusedCategoryId] = useState<number | null>(null);
+
   useEffect(() => {
     fetchTree();
   }, []);
 
   const fetchTree = () => {
-  setLoading(true);
-  getCategoryTree(auth.accessToken ?? undefined)
-    .then(setTree)
-    .catch((err) => setError("Failed to load category tree"))
-    .finally(() => setLoading(false));
-};
+    setLoading(true);
+    getCategoryTree(auth.accessToken ?? undefined)
+      .then(setTree)
+      .catch((err) => setError("Failed to load category tree"))
+      .finally(() => setLoading(false));
+  };
 
   // Recursively update a node by id
   const updateNodeById = (
@@ -134,6 +136,40 @@ const TreeView: React.FC = () => {
       }
     }
     return { node: null, parent: null };
+  };
+
+  // Find a node by id (no parent)
+  const findNodeById = (nodes: Category[], id: number): Category | null => {
+    for (const n of nodes) {
+      if (n.id === id) return n;
+      if (n.subcategories && n.subcategories.length > 0) {
+        const found = findNodeById(n.subcategories, id);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+
+  // Build a breadcrumb path to the focused node
+  const buildBreadcrumbPath = (nodes: Category[], id: number): Category[] => {
+    const path: Category[] = [];
+    const traverse = (currentNodes: Category[], targetId: number): boolean => {
+      for (const node of currentNodes) {
+        if (node.id === targetId) {
+          path.unshift(node);
+          return true;
+        }
+        if (node.subcategories && node.subcategories.length > 0) {
+          if (traverse(node.subcategories, targetId)) {
+            path.unshift(node);
+            return true;
+          }
+        }
+      }
+      return false;
+    };
+    traverse(nodes, id);
+    return path;
   };
 
   // Remove a node by id and return the new tree and the removed node
@@ -538,7 +574,7 @@ const TreeView: React.FC = () => {
     }
   };
 
-    // --- CATEGORY NODE TOGGLE (expand/collapse) ---
+  // --- CATEGORY NODE TOGGLE (expand/collapse) ---
   const handleToggle = async (id: number) => {
     let nodeToToggle: Category | undefined;
     const findNode = (nodes: Category[]): void => {
@@ -556,26 +592,46 @@ const TreeView: React.FC = () => {
     const willExpand = nodeToToggle ? !nodeToToggle.isExpanded : true;
 
     if (auth.accessToken) {
-    setCategoryDisplayPreference(id, willExpand, auth.accessToken).catch(console.error);
+      setCategoryDisplayPreference(id, willExpand, auth.accessToken).catch(console.error);
     } else {
-    // Optionally handle the case where the user is not authenticated
-    console.error("User is not authenticated");
+      // Optionally handle the case where the user is not authenticated
+      console.error("User is not authenticated");
     }
 
-
     setTree((prev) =>
-  updateNodeById(prev, id, (node) => ({
-    ...node,
-    isExpanded: willExpand,
-  }))
-);}
+      updateNodeById(prev, id, (node) => ({
+        ...node,
+        isExpanded: willExpand,
+      }))
+    );
+  };
 
+  // --- Double-click to focus a category ---
+  const handleDoubleClick = (node: Category) => {
+    setFocusedCategoryId(node.id);
+  };
+
+  // --- Breadcrumb handler ---
+  const handleBreadcrumbClick = (categoryId: number | null) => {
+    setFocusedCategoryId(categoryId);
+  };
 
   // --- RENDER ---
-  if (loading) return <div>Loading...</div>;
+
+  // Compute which nodes to display and the breadcrumb path
+  let nodesToDisplay: Category[] = tree;
+  let breadcrumbPath: Category[] = [];
+  if (focusedCategoryId !== null) {
+    const focusedNode = findNodeById(tree, focusedCategoryId);
+    if (focusedNode) {
+      nodesToDisplay = [focusedNode];
+      breadcrumbPath = buildBreadcrumbPath(tree, focusedCategoryId);
+    }
+  }
 
   // --- Modals ---
   const renderModal = () => {
+    // ... unchanged, same as before ...
     if (modal === "createCategory") {
       return (
         <div className={styles.modalBackdrop}>
@@ -743,6 +799,35 @@ const TreeView: React.FC = () => {
     return null;
   };
 
+  // --- Breadcrumb bar ---
+  const renderBreadcrumb = () => {
+    if (focusedCategoryId === null) return null;
+    return (
+      <div className={styles.breadcrumbBar}>
+        <span
+          className={styles.breadcrumbSegment}
+          onClick={() => handleBreadcrumbClick(null)}
+        >
+          Root
+        </span>
+        {breadcrumbPath.map((cat, idx) => (
+          <React.Fragment key={cat.id}>
+            <span className={styles.breadcrumbSeparator}>/</span>
+            <span
+              className={styles.breadcrumbSegment}
+              onClick={() => handleBreadcrumbClick(cat.id)}
+              style={idx === breadcrumbPath.length - 1 ? { fontWeight: "bold" } : undefined}
+            >
+              {cat.name}
+            </span>
+          </React.Fragment>
+        ))}
+      </div>
+    );
+  };
+
+  if (loading) return <div>Loading...</div>;
+
   // --- Main render ---
   return (
     <div className={styles.treeWrapper} tabIndex={-1}
@@ -751,7 +836,8 @@ const TreeView: React.FC = () => {
         setArtifactMenu(null);
       }}
     >
-      {tree.map((node) => (
+      {renderBreadcrumb()}
+      {nodesToDisplay.map((node) => (
         <TreeNode
           key={node.id}
           node={node}
@@ -765,6 +851,7 @@ const TreeView: React.FC = () => {
           draggingNodeId={draggingNodeId}
           dragOver={dragOver}
           onArtifactContextMenu={handleArtifactContextMenu}
+          onDoubleClick={handleDoubleClick}
         />
       ))}
 
