@@ -3,6 +3,7 @@ import { useAuth } from "../hooks/useAuth";
 import { Artifact } from "../types/artifact";
 import { getArtifacts, getAllArtifacts } from "../api/artifactApi";
 import { Category } from "../types/category";
+import { getCategories } from "../api/categoryApi"; // <-- You must have a function to fetch categories with names!
 import { useNavigate } from "react-router-dom";
 import "./ArtifactSearchPage.css";
 
@@ -72,21 +73,6 @@ function extractUniqueNumber<T>(arr: T[], key: keyof T): number[] {
   return numbers;
 }
 
-// Updated: Always use actual category name if available, otherwise fallback to id
-function extractCategories(arr: Artifact[]): Pick<Category, 'id' | 'name'>[] {
-  const seen = new Map<number, Pick<Category, 'id' | 'name'>>();
-  arr.forEach(artifact => {
-    if (artifact.categoryId !== undefined && artifact.categoryId !== null) {
-      const name =
-        artifact.category && artifact.category.name
-          ? artifact.category.name
-          : ""; // fallback to empty string to satisfy type
-      seen.set(artifact.categoryId, { id: artifact.categoryId, name });
-    }
-  });
-  return Array.from(seen.values());
-}
-
 const ArtifactSearchPage: React.FC = () => {
   const { auth } = useAuth();
   const navigate = useNavigate();
@@ -109,7 +95,7 @@ const ArtifactSearchPage: React.FC = () => {
   const [availableLanguages, setAvailableLanguages] = useState<string[]>([]);
   const [availableFrameworks, setAvailableFrameworks] = useState<string[]>([]);
   const [availableLicenseTypes, setAvailableLicenseTypes] = useState<string[]>([]);
-  const [availableCategories, setAvailableCategories] = useState<Pick<Category, 'id' | 'name'>[]>([]);
+  const [availableCategories, setAvailableCategories] = useState<Category[]>([]);
   const [availableTypes, setAvailableTypes] = useState<number[]>([]);
 
   // Artifacts & pagination
@@ -120,15 +106,19 @@ const ArtifactSearchPage: React.FC = () => {
   // Modal state
   const [selectedArtifact, setSelectedArtifact] = useState<Artifact | null>(null);
 
-  // On mount, fetch all artifacts for extracting filter options
+  // On mount, fetch all categories (with names) and all artifacts for extracting filter options
   useEffect(() => {
     if (!auth.accessToken) return;
+    // Fetch categories with names for dropdown
+    getCategories(auth.accessToken).then(categories => {
+      setAvailableCategories(categories);
+    });
+    // Still use all artifacts to extract other filters
     getAllArtifacts(auth.accessToken).then(allArtifacts => {
       setAvailableLanguages(extractUnique(allArtifacts, "programmingLanguage"));
       setAvailableFrameworks(extractUnique(allArtifacts, "framework"));
       setAvailableLicenseTypes(extractUnique(allArtifacts, "licenseType"));
       setAvailableTypes(extractUniqueNumber(allArtifacts, "type"));
-      setAvailableCategories(extractCategories(allArtifacts));
     });
     // eslint-disable-next-line
   }, [auth.accessToken]);
@@ -188,7 +178,7 @@ const ArtifactSearchPage: React.FC = () => {
   const getCategoryName = (id: number | null) => {
     if (id == null) return "";
     const cat = availableCategories.find(c => c.id === id);
-    return cat?.name || `Category ${id}`;
+    console.log(availableCategories);
   };
 
   return (
@@ -284,8 +274,7 @@ const ArtifactSearchPage: React.FC = () => {
               <option value="">Any</option>
               {availableCategories.map(cat => (
                 <option key={cat.id} value={cat.id}>
-                  {/* Show category name if present, fallback to id text only if name missing */}
-                  {cat.name ? cat.name : `Category ${cat.id}`}
+                  {cat.name}
                 </option>
               ))}
             </select>

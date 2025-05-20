@@ -3,38 +3,40 @@ import { Category } from '../types/category';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5064/api';
 
+/**
+ * Fetches the full category tree with names and all subcategories.
+ * This should be used for dropdowns and filters requiring category names.
+ */
 export const getCategoryTree = async (token?: string): Promise<Category[]> => {
   const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
   const response = await axios.get<Category[]>(`${API_BASE_URL}/categories/tree`, { headers });
-  const tree = response.data;
+  return response.data;
+};
 
-  // Helper to recursively fetch artifacts for all categories
-  const fetchArtifactsRecursively = async (categories: Category[]): Promise<Category[]> => {
-    return Promise.all(categories.map(async (cat) => {
-      let artifacts = [];
-      try {
-        const artRes = await axios.get(`${API_BASE_URL}/artifacts?CategoryId=${cat.id}`, { headers });
-        artifacts = artRes.data;
-      } catch (e: any) {
-        // Treat 404 as "no artifacts", ignore it
-        if (e?.response?.status !== 404) {
-          console.error("Failed to fetch artifacts for category", cat.id, e);
-        }
-        artifacts = [];
-      }
-      // Recursively fetch subcategories, always ensure it's an array
-      const subcategories = Array.isArray(cat.subcategories)
-        ? await fetchArtifactsRecursively(cat.subcategories)
-        : [];
-      return {
-        ...cat,
-        artifacts,
-        subcategories,
-      };
-    }));
-  };
+/**
+ * Fetches a flat list of all categories (id & name) for use in filters/dropdowns.
+ * This walks the tree and flattens all categories into a single array.
+ */
+export const getCategories = async (token?: string): Promise<Category[]> => {
+  const tree = await getCategoryTree(token);
+  console.log('tree from API', tree); // <--- Add this line
 
-  return fetchArtifactsRecursively(tree);
+  // Helper: Recursively flatten the tree
+  function flatten(categories: Category[]): Category[] {
+    return categories.flatMap(cat => [
+      {
+        id: cat.id,
+        name: cat.name,
+        parentCategoryId: cat.parentCategoryId,
+        subcategories: [],
+        artifacts: cat.artifacts,
+        isExpanded: cat.isExpanded
+      },
+      ...(cat.subcategories ? flatten(cat.subcategories) : [])
+    ]);
+  }
+
+  return flatten(tree);
 };
 
 export interface CategoryDto {
@@ -59,4 +61,3 @@ export const setCategoryDisplayPreference = async (categoryId: number, isExpande
     }
   );
 };
-
