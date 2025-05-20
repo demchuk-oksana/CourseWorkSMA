@@ -59,3 +59,4 @@ export const setCategoryDisplayPreference = async (categoryId: number, isExpande
     }
   );
 };
+

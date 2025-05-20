@@ -1,6 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import TreeView from "../components/CategoryTree/TreeView";
+import "./HomePage.css";
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
@@ -10,11 +11,14 @@ const HomePage: React.FC = () => {
   };
 
   return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <h1>Categories</h1>
-        <button onClick={handleSearchClick} style={{ padding: "8px 16px", fontSize: "16px" }}>
-          Search Artifacts
+    <div className="home-page">
+      <div className="home-header-bar">
+        <button
+          className="home-search-btn"
+          onClick={handleSearchClick}
+          type="button"
+        >
+          🔍 Search Artifacts
         </button>
       </div>
       <TreeView />

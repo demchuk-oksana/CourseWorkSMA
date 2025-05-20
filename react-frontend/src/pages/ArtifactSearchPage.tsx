@@ -3,6 +3,7 @@ import { useAuth } from "../hooks/useAuth";
 import { Artifact } from "../types/artifact";
 import { getArtifacts, getAllArtifacts } from "../api/artifactApi";
 import { Category } from "../types/category";
+import { useNavigate } from "react-router-dom";
 import "./ArtifactSearchPage.css";
 
 // Type for paginated API response
@@ -16,7 +17,6 @@ type ArtifactApiResponse = {
   };
 };
 
-// 1. Define types for filter state
 type FilterState = {
   searchTerm: string;
   ProgrammingLanguage: string[];
@@ -30,7 +30,6 @@ type FilterState = {
   pageSize: number;
 };
 
-// 2. Modal for artifact detail
 const ArtifactDetailModal: React.FC<{
   artifact: Artifact | null;
   onClose: () => void;
@@ -62,7 +61,6 @@ function extractUnique<T>(arr: T[], key: keyof T): string[] {
   return Array.from(new Set(arr.map(item => String(item[key])).filter(Boolean)));
 }
 
-// TS-safe version: first filter for numbers, then deduplicate
 function extractUniqueNumber<T>(arr: T[], key: keyof T): number[] {
   const numbers: number[] = [];
   for (const item of arr) {
@@ -74,24 +72,24 @@ function extractUniqueNumber<T>(arr: T[], key: keyof T): number[] {
   return numbers;
 }
 
-// Only extract id and name for categories to prevent TS errors
+// Updated: Always use actual category name if available, otherwise fallback to id
 function extractCategories(arr: Artifact[]): Pick<Category, 'id' | 'name'>[] {
   const seen = new Map<number, Pick<Category, 'id' | 'name'>>();
   arr.forEach(artifact => {
-    if (
-      artifact.categoryId !== undefined &&
-      artifact.categoryId !== null &&
-      artifact.category !== undefined
-    ) {
-      seen.set(artifact.categoryId, { id: artifact.categoryId, name: artifact.category.name });
+    if (artifact.categoryId !== undefined && artifact.categoryId !== null) {
+      const name =
+        artifact.category && artifact.category.name
+          ? artifact.category.name
+          : ""; // fallback to empty string to satisfy type
+      seen.set(artifact.categoryId, { id: artifact.categoryId, name });
     }
   });
   return Array.from(seen.values());
 }
 
-// 4. Main Search Page Component
 const ArtifactSearchPage: React.FC = () => {
   const { auth } = useAuth();
+  const navigate = useNavigate();
 
   // Filter state
   const [filters, setFilters] = useState<FilterState>({
@@ -139,8 +137,9 @@ const ArtifactSearchPage: React.FC = () => {
   useEffect(() => {
     if (!auth.accessToken) return;
     setLoading(true);
-    // Prepare query for API
-    const query = {
+
+    // Build the query object as before, pass it as an object to getArtifacts.
+    const queryObj: Record<string, any> = {
       ...(filters.searchTerm && { searchTerm: filters.searchTerm }),
       ...(filters.ProgrammingLanguage.length > 0 && { ProgrammingLanguage: filters.ProgrammingLanguage }),
       ...(filters.Framework.length > 0 && { Framework: filters.Framework }),
@@ -153,10 +152,9 @@ const ArtifactSearchPage: React.FC = () => {
       pageSize: filters.pageSize,
     };
 
-    getArtifacts(query, auth.accessToken)
+    getArtifacts(queryObj, auth.accessToken)
       .then((result: ArtifactApiResponse | Artifact[]) => {
         if (Array.isArray(result)) {
-          // Fallback for old API: just set artifacts and estimate count
           setArtifacts(result);
           setTotalCount(
             result.length < filters.pageSize && filters.pageNumber === 1
@@ -186,18 +184,36 @@ const ArtifactSearchPage: React.FC = () => {
   // Paging
   const totalPages = Math.max(1, Math.ceil(totalCount / filters.pageSize));
 
+  // Helper: get category name by id
+  const getCategoryName = (id: number | null) => {
+    if (id == null) return "";
+    const cat = availableCategories.find(c => c.id === id);
+    return cat?.name || `Category ${id}`;
+  };
+
   return (
     <div className="artifact-search-page">
-      {/* Header: search + sort */}
+      {/* Custom header bar */}
+      <div className="artifact-search-header-bar">
+        <button
+          className="artifact-back-to-tree-btn"
+          onClick={() => navigate("/categories")}
+          title="Back to Categories Tree"
+        >
+          ← Categories Tree
+        </button>
+      </div>
+
       <div className="artifact-search-header">
         <input
           type="text"
-          placeholder="Search by title, description, or URL..."
+          placeholder="Search by title or description..."
           value={filters.searchTerm}
           onChange={e => setFilters(f => ({ ...f, searchTerm: e.target.value, pageNumber: 1 }))}
           className="artifact-search-bar"
         />
         <select
+          className="artifact-sort-select"
           value={filters.sortBy}
           onChange={e => setFilters(f => ({ ...f, sortBy: e.target.value, pageNumber: 1 }))}
         >
@@ -205,7 +221,9 @@ const ArtifactSearchPage: React.FC = () => {
           <option value="title">Title</option>
         </select>
         <button
+          className={"artifact-sort-btn" + (filters.sortDescending ? " sort-desc" : " sort-asc")}
           onClick={() => setFilters(f => ({ ...f, sortDescending: !f.sortDescending }))}
+          title={filters.sortDescending ? "Descending" : "Ascending"}
         >
           {filters.sortDescending ? "↓" : "↑"}
         </button>
@@ -265,7 +283,10 @@ const ArtifactSearchPage: React.FC = () => {
             >
               <option value="">Any</option>
               {availableCategories.map(cat => (
-                <option key={cat.id} value={cat.id}>{cat.name}</option>
+                <option key={cat.id} value={cat.id}>
+                  {/* Show category name if present, fallback to id text only if name missing */}
+                  {cat.name ? cat.name : `Category ${cat.id}`}
+                </option>
               ))}
             </select>
           </div>
@@ -302,6 +323,12 @@ const ArtifactSearchPage: React.FC = () => {
                 <div>
                   <span>{a.licenseType}</span> | <span>v{a.version}</span>
                 </div>
+                <div>
+                  <span>
+                    {/* Show category name in card if available */}
+                    {a.category?.name ?? getCategoryName(a.categoryId)}
+                  </span>
+                </div>
               </div>
             ))}
           </div>
@@ -334,15 +361,3 @@ const ArtifactSearchPage: React.FC = () => {
 };
 
 export default ArtifactSearchPage;
-
-/*
-WHAT THIS FILE DOES:
-- Lays out the page with a header (search/sort), sidebar (filters), and a main area (artifact cards, pagination)
-- Fetches all artifacts on mount to extract filter options client-side
-- Filters, sorts, and paginates artifacts via backend API
-- Handles filter changes, pagination, and sorting
-- Shows a modal window with full artifact details when a card is clicked
-- Uses checkboxes for multi-select filters (language, framework, license)
-- Uses dropdowns for category and type
-- Handles loading and no-results states
-*/

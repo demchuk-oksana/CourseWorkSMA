@@ -4,7 +4,7 @@ import { useAuth } from "../hooks/useAuth";
 import HomePage from "../pages/HomePage";
 import ArtifactPage from "../pages/ArtifactPage";
 import LoginPage from "../pages/LoginPage";
-// import ArtifactSearchPage from "../pages/ArtifactSearchPage"; // <-- NEW
+import ArtifactSearchPage from "../pages/ArtifactSearchPage"; // <-- NEW
 
 /**
  * ProtectRoute: If user is not authenticated, redirect to login.
@@ -35,14 +35,14 @@ const AppRoutes: React.FC = () => (
         </ProtectRoute>
       }
     />
-    {/* <Route
+    <Route
       path="/search"
       element={
         <ProtectRoute>
           <ArtifactSearchPage />
         </ProtectRoute>
       }
-    /> */}
+    />
     <Route path="/login" element={<LoginPage />} />
     {/* Catch-all: redirect to home */}
     <Route path="*" element={<Navigate to="/" replace />} />

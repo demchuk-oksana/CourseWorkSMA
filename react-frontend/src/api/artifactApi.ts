@@ -1,5 +1,6 @@
 import axios from "axios";
 import { Artifact } from "../types/artifact";
+import qs from "qs";
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5064/api';
 
@@ -27,7 +28,8 @@ export const getAllArtifacts = async (
 };
 
 /**
- * Fetch artifacts with filtering, paging, and sorting
+ * Fetch artifacts with filtering, paging, and sorting.
+ * Uses qs to serialize arrays as repeated parameters (no brackets).
  */
 export const getArtifacts = async (
   query: any,
@@ -36,6 +38,7 @@ export const getArtifacts = async (
   const response = await axios.get(`${API_BASE_URL}/artifacts`, {
     headers: { Authorization: `Bearer ${token}` },
     params: query,
+    paramsSerializer: params => qs.stringify(params, { arrayFormat: "repeat" }),
   });
   return response.data;
 };

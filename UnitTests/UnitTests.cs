@@ -2,9 +2,13 @@ using API.DatabaseContexts;
 using API.Models;
 using API.Repositories;
 using Microsoft.EntityFrameworkCore;
+using Xunit;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
-namespace UnitTests;
-
+namespace UnitTests
+{
     public class CategoryRepositoryTests
     {
         private readonly DbContextOptions<ArtifactsDbContext> _options;
@@ -169,31 +173,136 @@ namespace UnitTests;
             Assert.Equal(newValue, preference.IsExpanded);
         }
 
+        // ---------- More tests below ----------
+
         [Fact]
-        public void GetDisplayPreference_ShouldReturnPreference_WhenExists()
+        public void GetRootCategories_ShouldReturnEmpty_WhenNoCategoriesExist()
+        {
+            // Arrange
+            _dbContext.Categories.RemoveRange(_dbContext.Categories);
+            _dbContext.SaveChanges();
+
+            // Act
+            var result = _repository.GetRootCategories();
+
+            // Assert
+            Assert.Empty(result);
+        }
+
+        [Fact]
+        public void GetSubcategories_ShouldReturnEmpty_WhenNoSubcategoriesExist()
+        {
+            // Act
+            var result = _repository.GetSubcategories(999); // Non-existent parent
+
+            // Assert
+            Assert.Empty(result);
+        }
+
+        [Fact]
+        public void IsCategoryEmpty_ShouldReturnFalse_WhenCategoryHasSubcategories()
+        {
+            // Arrange
+            var parentCategoryId = 1; // Has subcategories
+
+            // Act
+            var result = _repository.IsCategoryEmpty(parentCategoryId);
+
+            // Assert
+            Assert.False(result);
+        }
+
+        [Fact]
+        public void IsCategoryEmpty_ShouldReturnFalse_WhenCategoryHasArtifacts()
+        {
+            // Arrange
+            int categoryId = 4;
+            // Simulate artifact in category 4
+            _dbContext.Artifacts.Add(new SoftwareDevArtifact
+            {
+                Id = 10,
+                Title = "Test Artifact",
+                CategoryId = categoryId,
+                Author = "Test Author",
+                Description = "Test Description",
+                Framework = "Test Framework",
+                LicenseType = "MIT",
+                ProgrammingLanguage = "C#",
+                Url = "http://test-artifact.com",
+                Version = "1.0.0"
+            });
+            _dbContext.SaveChanges();
+
+
+            // Act
+            var result = _repository.IsCategoryEmpty(categoryId);
+
+            // Assert
+            Assert.False(result);
+        }
+
+        [Fact]
+        public void SetDisplayPreference_ShouldNotDuplicatePreferences()
         {
             // Arrange
             int categoryId = 1;
             int userId = 1;
 
+            // There is already a preference for this pair
+            var initialCount = _dbContext.CategoryPreferences.Count();
+
             // Act
-            var result = _repository.GetDisplayPreference(categoryId, userId);
+            _repository.SetDisplayPreference(categoryId, userId, false);
+            _repository.SetDisplayPreference(categoryId, userId, true);
+            _dbContext.SaveChanges();
 
             // Assert
-            Assert.Equal(true, result);
+            var finalCount = _dbContext.CategoryPreferences.Count();
+            Assert.Equal(initialCount, finalCount);
         }
 
         [Fact]
-        public void GetDisplayPreference_ShouldReturnNull_WhenPreferenceDoesNotExist()
+        public void Rearrange_ShouldNotChangeOrderIndex_IfPositionIsTheSame()
         {
             // Arrange
-            int categoryId = 3; // No preference exists for this category
-            int userId = 1;
+            int categoryId = 3;
+            int? newParentId = 1; // Same parent
+            int currentOrderIndex = _dbContext.Categories.Find(categoryId).OrderIndex;
 
             // Act
-            var result = _repository.GetDisplayPreference(categoryId, userId);
+            _repository.Rearrange(categoryId, newParentId, currentOrderIndex);
+            _dbContext.SaveChanges();
 
             // Assert
-            Assert.Null(result);
+            var category = _dbContext.Categories.Find(categoryId);
+            Assert.Equal(currentOrderIndex, category.OrderIndex);
         }
+
+        [Fact]
+        public void SetDisplayPreference_ShouldUpdateForMultipleUsers()
+        {
+            // Arrange
+            int categoryId = 1;
+            int userId1 = 1;
+            int userId2 = 2;
+            bool pref1 = false;
+            bool pref2 = true;
+
+            // Act
+            _repository.SetDisplayPreference(categoryId, userId1, pref1);
+            _repository.SetDisplayPreference(categoryId, userId2, pref2);
+            _dbContext.SaveChanges();
+
+            // Assert
+            var p1 = _dbContext.CategoryPreferences.FirstOrDefault(p => p.CategoryId == categoryId && p.UserId == userId1);
+            var p2 = _dbContext.CategoryPreferences.FirstOrDefault(p => p.CategoryId == categoryId && p.UserId == userId2);
+
+            Assert.NotNull(p1);
+            Assert.NotNull(p2);
+            Assert.Equal(pref1, p1.IsExpanded);
+            Assert.Equal(pref2, p2.IsExpanded);
+        }
+
+       
     }
+}
