@@ -1,11 +1,13 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Category } from "../../types/category";
+import { Artifact } from "../../types/artifact";
 import TreeNode from "./TreeNode";
 import styles from "./TreeView.module.css";
 import axios from "axios";
 import { useAuth } from "../../hooks/useAuth";
 import { getCategoryTree, setCategoryDisplayPreference } from "../../api/categoryApi";
+import { getAllArtifacts } from "../../api/artifactApi";
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5064/api';
 
 interface ContextMenuState {
@@ -72,6 +74,21 @@ interface FlatEntry {
   category: Category;
   artifact?: any;
   level: number;
+}
+
+// Helper: recursively assign artifacts to the correct category node
+function assignArtifactsToCategories(categories: Category[], artifacts: Artifact[]): Category[] {
+  return categories.map(category => {
+    const myArtifacts = artifacts.filter(a => a.categoryId === category.id);
+    const updatedSubcategories = category.subcategories
+      ? assignArtifactsToCategories(category.subcategories, artifacts)
+      : [];
+    return {
+      ...category,
+      artifacts: myArtifacts,
+      subcategories: updatedSubcategories,
+    };
+  });
 }
 
 const flattenTree = (
@@ -152,28 +169,32 @@ const TreeView: React.FC = () => {
   const createCategoryFirstInputRef = useRef<HTMLInputElement>(null);
   const addArtifactFirstInputRef = useRef<HTMLInputElement>(null);
 
+  // Fetch categories and artifacts together, then merge
+  const fetchTree = useCallback(() => {
+    setLoading(true);
+    if (!auth.accessToken) {
+      setError("Not authenticated");
+      setLoading(false);
+      return;
+    }
+    Promise.all([
+      getCategoryTree(auth.accessToken),
+      getAllArtifacts(auth.accessToken)
+    ])
+      .then(([categoryTree, allArtifacts]) => {
+        setTree(assignArtifactsToCategories(categoryTree, allArtifacts));
+      })
+      .catch(() => setError("Failed to load category tree"))
+      .finally(() => setLoading(false));
+  }, [auth.accessToken]);
+
   useEffect(() => {
     fetchTree();
     if (treeRootRef.current) {
       treeRootRef.current.focus();
     }
-  }, []);
-
-  useEffect(() => {
-    if (modal === "createCategory" && createCategoryFirstInputRef.current) {
-      createCategoryFirstInputRef.current.focus();
-    } else if (modal === "addArtifact" && addArtifactFirstInputRef.current) {
-      addArtifactFirstInputRef.current.focus();
-    }
-  }, [modal]);
-
-  const fetchTree = () => {
-    setLoading(true);
-    getCategoryTree(auth.accessToken ?? undefined)
-      .then(setTree)
-      .catch(() => setError("Failed to load category tree"))
-      .finally(() => setLoading(false));
-  };
+    // eslint-disable-next-line
+  }, [fetchTree]);
 
   const updateNodeById = (
     nodes: Category[],
@@ -1339,6 +1360,7 @@ const TreeView: React.FC = () => {
           dragOver={dragOver}
           onArtifactContextMenu={handleArtifactContextMenu}
           onDoubleClick={handleDoubleClick}
+          doubleClickInterval={200}
           selectedCategoryId={selectedCategoryId}
           selectedArtifactId={selectedArtifactId}
           onNodeClick={handleNodeClick}

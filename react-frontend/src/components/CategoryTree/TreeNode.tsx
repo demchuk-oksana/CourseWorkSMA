@@ -26,7 +26,7 @@ interface TreeNodeProps {
   dragOver?: { nodeId: number; position: "above" | "below" | "inside" | null } | null;
   onArtifactContextMenu?: (event: React.MouseEvent, artifact: Artifact, categoryId: number) => void;
   onDoubleClick?: (node: Category) => void;
-  // Selection
+  doubleClickInterval?: number; // <<---- NEW
   selectedCategoryId?: number | null;
   selectedArtifactId?: number | null;
   onNodeClick?: (categoryId: number) => void;
@@ -47,6 +47,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   dragOver,
   onArtifactContextMenu,
   onDoubleClick,
+  doubleClickInterval = 200, // <<---- NEW: default 200ms
   selectedCategoryId,
   selectedArtifactId,
   onNodeClick,
@@ -69,6 +70,19 @@ const TreeNode: React.FC<TreeNodeProps> = ({
 
   const isExpandable = true;
   const isSelected = selectedCategoryId === node.id && !selectedArtifactId;
+
+  // --- Custom double click logic ---
+  const lastClickRef = useRef<number | null>(null);
+  function handleClick() {
+    const now = Date.now();
+    if (lastClickRef.current && now - lastClickRef.current < doubleClickInterval) {
+      lastClickRef.current = null;
+      onDoubleClick && onDoubleClick(node);
+    } else {
+      lastClickRef.current = now;
+    }
+  }
+  // ---------------------------------
 
   return (
     <div>
@@ -93,9 +107,11 @@ const TreeNode: React.FC<TreeNodeProps> = ({
             if (ref.current) onDrop(e, node, ref.current);
           }
         }
-        onDoubleClick={() => onDoubleClick && onDoubleClick(node)}
+        // Remove native onDoubleClick!
+        // onDoubleClick={() => onDoubleClick && onDoubleClick(node)}
         onClick={(e) => {
           e.stopPropagation();
+          handleClick();
           onNodeClick && onNodeClick(node.id);
         }}
         tabIndex={-1}
@@ -129,13 +145,14 @@ const TreeNode: React.FC<TreeNodeProps> = ({
                 dragOver={dragOver}
                 onArtifactContextMenu={onArtifactContextMenu}
                 onDoubleClick={onDoubleClick}
+                doubleClickInterval={doubleClickInterval}
                 selectedCategoryId={selectedCategoryId}
                 selectedArtifactId={selectedArtifactId}
                 onNodeClick={onNodeClick}
                 onArtifactClick={onArtifactClick}
               />
             ))}
-          {node.artifacts &&
+          {Array.isArray(node.artifacts) &&
             node.artifacts.map((artifact: Artifact) => {
               const isArtifactSelected = selectedArtifactId === artifact.id && selectedCategoryId === node.id;
               return (

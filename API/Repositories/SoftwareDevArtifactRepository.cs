@@ -15,12 +15,12 @@ public class SoftwareDevArtifactRepository : Repository<SoftwareDevArtifact>, IS
     }
 
     public new SoftwareDevArtifact? GetById(int id)
-{
-    return _context.Artifacts
-        .Where(a => a.Id == id)
-        .Include(a => a.Versions)
-        .FirstOrDefault();
-}
+    {
+        return _context.Artifacts
+            .Where(a => a.Id == id)
+            .Include(a => a.Versions)
+            .FirstOrDefault();
+    }
 
     public IEnumerable<SoftwareDevArtifact> GetByCategory(int categoryId)
     {
@@ -142,5 +142,47 @@ public class SoftwareDevArtifactRepository : Repository<SoftwareDevArtifact>, IS
         return artifacts
             .Include(a => a.Versions)
             .ToList();
+    }
+
+    public int CountByCombinedCriteria(ArtifactSearchQuery query)
+    {
+        var artifacts = _context.Artifacts.AsQueryable();
+
+        if (!string.IsNullOrEmpty(query.SearchTerm))
+        {
+            string term = query.SearchTerm.ToLower();
+
+            artifacts = artifacts.Where(a =>
+                a.Title.ToLower().Contains(term) ||
+                a.Description.ToLower().Contains(term) ||
+                a.Author.ToLower().Contains(term) ||
+                a.ProgrammingLanguage.ToLower().Contains(term) ||
+                a.Framework.ToLower().Contains(term) ||
+                a.LicenseType.ToLower().Contains(term) ||
+                a.Version.ToLower().Contains(term)
+            );
+        }
+
+        if (!string.IsNullOrEmpty(query.ProgrammingLanguage))
+        {
+            artifacts = artifacts.Where(a => a.ProgrammingLanguage == query.ProgrammingLanguage);
+        }
+
+        if (!string.IsNullOrEmpty(query.Framework))
+        {
+            artifacts = artifacts.Where(a => a.Framework == query.Framework);
+        }
+
+        if (!string.IsNullOrEmpty(query.LicenseType))
+        {
+            artifacts = artifacts.Where(a => a.LicenseType == query.LicenseType);
+        }
+
+        if (query.CategoryId.HasValue)
+        {
+            artifacts = artifacts.Where(a => a.CategoryId == query.CategoryId.Value);
+        }
+
+        return artifacts.Count();
     }
 }

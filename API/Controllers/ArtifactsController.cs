@@ -1,8 +1,9 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using API.UnitOfWork;
 using API.Models;
 using API.DTOs;
+using API.Services.Interfaces;
 
 namespace API.Controllers;
 
@@ -11,18 +12,34 @@ namespace API.Controllers;
 public class ArtifactsController : ControllerBase
 {
     private readonly IUnitOfWork _uow;
+    private readonly IArtifactSearchService _searchService;
 
-    public ArtifactsController(IUnitOfWork uow)
+    public ArtifactsController(IUnitOfWork uow, IArtifactSearchService searchService)
     {
         _uow = uow;
+        _searchService = searchService;
     }
 
-    // GET: /api/artifacts?search=lib&language=C#&framework=net8.0
+    // GET: /api/artifacts?searchTerm=lib&programmingLanguage=C#&framework=net8.0&pageNumber=1&pageSize=10
     [HttpGet]
     public IActionResult GetAll([FromQuery] ArtifactSearchQuery query)
     {
-        var results = _uow.SoftwareDevArtifactRepository.FilterByCombinedCriteria(query);
-        return Ok(results);
+        var results = _searchService.FilterByCombinedCriteria(query);
+        var totalCount = _searchService.CountByCombinedCriteria(query);
+
+        var pagination = new
+        {
+            pageNumber = query.PageNumber,
+            pageSize = query.PageSize,
+            totalCount,
+            totalPages = (int)System.Math.Ceiling(totalCount / (double)query.PageSize)
+        };
+
+        return Ok(new
+        {
+            data = results,
+            pagination
+        });
     }
 
     [HttpGet("{id}")]
@@ -64,7 +81,6 @@ public class ArtifactsController : ControllerBase
 
         return CreatedAtAction(nameof(GetById), new { id = artifact.Id }, artifact);
     }
-
 
     [Authorize]
     [HttpDelete("{id}")]

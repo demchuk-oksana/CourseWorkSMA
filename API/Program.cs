@@ -47,6 +47,7 @@ builder.Services.AddScoped<ISoftwareDevArtifactRepository, SoftwareDevArtifactRe
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IDownloadRepository, DownloadRepository>();
 builder.Services.AddScoped<IFeedbackRepository, FeedbackRepository>();
+builder.Services.AddScoped<IArtifactSearchService, ArtifactSearchService>();
 
 // 💉 Auth Services
 builder.Services.AddSingleton(rsaPrivateKey);
